@@ -19,39 +19,54 @@
 #include "Camshift.hpp"
 #include "SurfMatcher.hpp"
 #include "TestFile.hpp"
+#include "ColorBalance.hpp"
 
 using namespace std;
 using namespace cv;
 using namespace cv::xfeatures2d;
 
-char scenePath[] = "../scene/";
+char scenePath[100] = "../scene/";
 TestFile _TF;
 
 int main(int argc, const char ** argv)
 {
     //匯入檔案
     Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
-    _TF.InitTestFile(argv[2], argv[3], argv[4]);
+    _TF.InitTestFile(argv[2], argv[3], argv[4]);//input,output,result
 
-    char* imgBuffer = new char[_TF.GetImgByIndex(0).length() + 1];
-    strcpy(imgBuffer, _TF.GetImgByIndex(0).c_str());
+
+for(int index = 0; index < 2; index++)
+{
+strcpy(scenePath, "../scene/");
+    //讀取scene
+    //imgBuffer = new char[_TF.GetImgByIndex(index).length() + 1];
+    char imgBuffer[50];
+    strcpy(imgBuffer, _TF.GetImgByIndex(index).c_str());
     strcat(scenePath, imgBuffer);    //從檔案輸入scene圖片及加上路徑
-    Mat imgScene = imread(scenePath , IMREAD_COLOR );  //讀取場景圖片＼
+    cout << "scenePath = " << scenePath << endl;
+    Mat imgScene = imread(scenePath , IMREAD_COLOR );  //讀取場景圖片
 
-    for(int i = 0; i < _TF.GetImgVectorSize(); i++)
-    {
-        _TF.WriteToOutput(_TF.GetImgByIndex(i));
-    }
-    _TF.WriteDownOutput();
+    //先色彩平衡再灰階  失敗
+    //Mat imgSceneCB;
+    //Mat imgObjectCB;
+    //ColorBalance(imgScene,imgSceneCB,1);
+    //ColorBalance(imgObject,imgObjectCB,1);
 
+    //Mat imgSceneGary;
+    //Mat imgObjectGary;
+    //cvtColor(imgSceneCB, imgSceneGary, CV_BGR2GRAY);
+    //cvtColor(imgObjectCB, imgObjectGary, CV_BGR2GRAY);
 
-    waitKey(0);
+    //File測試
+//    for(int i = 0; i < _TF.GetImgVectorSize(); i++)
+//    {
+//        _TF.WriteToOutput(_TF.GetImgByIndex(i));
+//    }
+//    _TF.WriteDownOutput();
+//
+//    _TF.Close();
+    //File測試結束
 
-    return EXIT_SUCCESS;
-
-    _TF.Close();
-
-    //resize(imgScene, imgScene, Size(1000, 625));
     Mat imgID =  SurfMatch(imgObject, imgScene);//切割出身份證樣本區域
     //驗證樣本區域size是否大於size(800(寬),480(高))
     resize(imgID, imgID, Size(800, 480));//大於的話就resize成較好辨識的大小；否則不辨識
@@ -77,7 +92,7 @@ int main(int argc, const char ** argv)
         subNumber.push_back(bigSizeSubMat);//切割成一個一個的數字
     }
 
-    //顯示各個數字
+    //顯示各個數字＆儲存
     for(int i = 0; i < 10; i++)
     {
         char str[] = "subNum";
@@ -93,6 +108,55 @@ int main(int argc, const char ** argv)
         imwrite(path, subNumber[i]);
     }
 
+    //灰階
+    cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);
+    imwrite("../subNum/imgIdNumber_gary.png",imgIdNumber);
+
+    //二值化
+    // Set threshold and maxValue
+    double thresh = 127;
+    double maxValue = 255;
+
+    Mat whiteWord;
+    Mat whiteLight;
+    char whiteWordPath[50];
+    char whiteLightPath[50];
+    int threshTemp;
+    for(int i = 0; i < 8; i++)
+    {
+        threshTemp = i * 32;
+        char s1[10];
+        sprintf(s1, "%d", threshTemp);
+
+        threshold(imgIdNumber,whiteWord,threshTemp, maxValue, THRESH_BINARY_INV);//字變白底變黑
+        strcpy(whiteWordPath, "../subNum/");
+        strcat(whiteWordPath, "1_whiteWord");
+        strcat(whiteWordPath, s1);
+        strcat(whiteWordPath, ".png");
+        imwrite(whiteWordPath,whiteWord);
+
+        threshold(imgIdNumber,whiteLight, threshTemp, maxValue, THRESH_BINARY);//反光變白
+        strcpy(whiteLightPath, "../subNum/");
+        strcat(whiteLightPath, "2_whiteLight");
+        strcat(whiteLightPath, s1);
+        strcat(whiteLightPath, ".png");
+        imwrite(whiteLightPath,whiteLight);
+    }
+
+
+    // Binary Threshold
+    threshold(imgIdNumber,imgIdNumber, thresh, maxValue, THRESH_BINARY_INV);//字變白底變黑
+    imwrite("../subNum/imgIdNumber_binary.png",imgIdNumber);
+
+    //閉合(先膨脹再侵蝕)
+    Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
+    Mat closeImg;
+    morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
+
+    //中值濾波
+    medianBlur(imgIdNumber, imgIdNumber, 3);
+    imwrite("../subNum/imgIdNumber_medianBlur.png",imgIdNumber);
+
     //OCR處理
     //Mat imgTest =imread( "scenetext02.jpg", IMREAD_COLOR );
     tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
@@ -102,14 +166,25 @@ int main(int argc, const char ** argv)
 		imgIdNumber.channels(), imgIdNumber.step1());
 	api -> Recognize(0);
 	const char* eng = api -> GetUTF8Text();
-	string str (eng);
-	cout << "String:" <<  str << endl;
+	char outputString[15] = "";
+	strncpy(outputString, eng, 10);
+	//string str (eng);
+	cout << "String:" <<  outputString << endl;
+
 
 	api -> End();
     //Mat img =imread( argv[1], IMREAD_COLOR );
     //camshift(output);
     //camshift2(output);
+
+    _TF.WriteToOutput(outputString);
+}
+
+    _TF.WriteDownOutput();
+
     waitKey(0);
 
     return EXIT_SUCCESS;
 }
+
+//./main ../template/object2.png ../test/inputTest.txt ../test/outputTest.txt ../test/testResult.txt

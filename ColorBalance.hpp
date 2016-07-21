@@ -8,7 +8,7 @@ using namespace cv;
 using namespace std;
 
 /// perform the Simplest Color Balancing algorithm
-void SimplestCB(Mat& in, Mat& out, float percent) {
+void ColorBalance(Mat& in, Mat& out, float percent) {
     assert(in.channels() == 3);
     assert(percent > 0 && percent < 100);
 
