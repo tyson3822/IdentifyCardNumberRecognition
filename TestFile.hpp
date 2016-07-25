@@ -103,6 +103,22 @@ public:
                 }
                 break;
             }
+            case 'o':
+            {
+                 for(int i  = 0; i < outputBuffer.size(); i++)
+                {
+                    cout << "output vector " << i << " = " << outputBuffer[i] << endl;
+                }
+                break;
+            }
+            case 'r':
+            {
+                 for(int i  = 0; i < resultBuffer.size(); i++)
+                {
+                    cout << "result vector " << i << " = " << resultBuffer[i] << endl;
+                }
+                break;
+            }
             default:
                 cout << "default" << endl;
                 break;
@@ -124,11 +140,125 @@ public:
         }
     }
 
+    //測試結果output
+    void MatchResult()
+    {
+        ViewVector('o');
+        ViewVector('t');
+        char outputCharArr[100];
+        char testCharArr[100];
+        for(int index = 0; index < outputBuffer.size(); index++)
+         {
+            //String To Char[] 轉型
+            strcpy(outputCharArr, outputBuffer[index].c_str());
+            strcpy(testCharArr, testBuffer[index].c_str());
+
+            //比對測資與output是否一樣
+            int result = MatchChar(outputCharArr, testCharArr);
+
+            //將結果丟進resultBuffer中
+            if(result == 1)resultBuffer.push_back("true");
+            if(result == -1)resultBuffer.push_back("false");
+        }
+        ViewVector('r');
+
+        //所有測試結果寫進文件中
+        for(int index = 0; index < resultBuffer.size(); index++)
+        {
+            _resultFile << resultBuffer[index] << endl;
+        }
+    }
+
+    //對比文字(Char)
+    int MatchChar(char *str1, char *str2)//output,test
+    {
+        int result = 1;
+        int charIndex = 0;
+        char p1 = str1[charIndex];
+        char p2 = str2[charIndex];
+        if(p1 == '\0')return -1;
+        while(p1 != '\0')
+        {
+            //cout << "p1 = " << p1 << endl;
+            //cout << "p2 = " << p2 << endl;
+            if(p1 != p2)return -1;
+            if(p2 == '\0')return -1;
+           charIndex++;
+            p1 = str1[charIndex];
+            p2 = str2[charIndex];
+        }
+        return result;
+    }
+
     //關閉文字檔
     void Close()
     {
         _inputFile.close();
         _outputFile.close();
         _resultFile.close();
+    }
+
+    //輸入檔名，取直到'.'前的字做output
+    char* FileNameWithoutType(char* input)
+    {
+        int charIndex = 0;
+        char p1 = input[charIndex];
+        char *output;
+        while(p1 != '.')
+        {
+            output[charIndex] = input[charIndex];
+            cout << "test charIndex = " << charIndex << endl;
+            cout << "output = " << output << endl;
+           charIndex++;
+           p1 = input[charIndex];
+        }
+        return output;
+    }
+
+    //新增以圖片名稱為資料夾名稱的路徑
+    char* AddImageFolderPath(char* oldPath, char* imgName)
+    {
+        char *newPath;
+        newPath = new char[50];
+        strcpy(newPath, oldPath);
+        strcat(newPath, imgName);
+        strcat(newPath, "/");
+        return newPath;
+    }
+
+    //將字串1-1000修改成0001-1000
+    char *FillDigit(char *input)
+    {
+        int digitalShift = 0;
+        int zeroShift = 0;
+        while(input[digitalShift] != '\0')
+            digitalShift++;
+        zeroShift = 4 - digitalShift;
+
+        char* output;
+        output = new char[5];
+        int index = 0;
+
+        for(index = 0; index < zeroShift; index++)
+            output[index] = '0';
+
+        for(int digit = 0; digit < digitalShift; digit++)
+        {
+            output[index] = input[digit];
+            index++;
+        }
+        output[4] = '\0';
+        return output;
+    }
+
+    //輸出路徑整歸
+    char* ImageOutputPath(char* basePath, char* folderPath, char* fileName)
+    {
+        char* output;
+        output = new char[50];
+        strcpy(output, basePath);
+        strcat(output, folderPath);
+        strcat(output, fileName);
+        return output;
     }
 };
