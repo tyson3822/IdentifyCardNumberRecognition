@@ -73,18 +73,91 @@ static Mat drawGoodMatches(
     //-- Sort matches and preserve top 10% matches
     sort(matches.begin(), matches.end());
     vector< DMatch > good_matches;
+    good_matches.reserve(matches.size());
     double minDist = matches.front().distance;
     double maxDist = matches.back().distance;
 
-    const int ptsPairs = min(GOOD_PTS_MAX, (int)(matches.size() * GOOD_PORTION));
-    for( int i = 0; i < ptsPairs; i++ )
+//  const int LOOP_NUM = 10;
+//  const int GOOD_PTS_MAX = 50;
+//  const float GOOD_PORTION = 0.15f;
+
+    int goodMatchStart = 0;
+    int goodMatchEnd = matches.size();
+    //goodMatchEnd = min(goodMatchStart + 30, goodMatchStart + (int)(matches.size() * GOOD_PORTION));
+    //goodMatchEnd = min(goodMatchEnd, (int)(matches.size()));
+    cout << "goodMatchEnd = " << goodMatchEnd << endl;
+    int ptsPairs = goodMatchEnd - goodMatchStart;
+
+    double tresholdDist = 0.2 * sqrt(double(img1.size().height * img1.size().height + img1.size().width * img1.size().width));
+    double deltaY = 0.2 * (double)img1.size().height;
+    double deltaX = 0.2 * (double)img1.size().width;
+
+    for( int i = goodMatchStart; i < goodMatchEnd; i++ )
     {
+            //以相近斜率做特特徵點篩選 失敗
+//        cout << "i = " << i <<endl;
+//        vector<double> slope;
+//        int slopeIndex = 0;
+//        for(int j = max(i - 1, 0); j <= min((int)matches.size(), i + 1); j++)
+//        {
+//            cout << "j= " << j << endl;
+//            Point2f from = keypoints1[matches[j].queryIdx].pt;
+//            Point2f to = keypoints2[matches[j].trainIdx].pt;
+//            slopeIndex++;
+//            slope.push_back((double)(to.y - from.y) / (double)(to.x - from.x));
+//        }
+//        int slopeRange = 5;
+//        int matchFlag = 0;
+//        for(int j = 0; j < slopeIndex - 1; j++)
+//        {
+//            if(slope[j] - slopeRange > slope[j + 1] || slope[j] + slopeRange < slope[j + 1])
+//                matchFlag++;
+//        }
+//        cout<<"slopeIndex = " << slopeIndex<<endl;
+//        for(int j= 0; j < slopeIndex; j++)
+//            cout<<"slope" << j << " = " <<slope[j]<<endl;
+//        cout<<"match flag = "<<matchFlag<<endl<<endl;
+//        if(matchFlag == 2)
+//        {
+//            Point2f from2 = keypoints1[matches[i].queryIdx].pt;
+//            Point2f to2 = keypoints2[matches[i].trainIdx].pt;
+//            cout << "slope = " << (double)(from2.y - to2.y) / (double)(from2.x - to2.x) << endl;
+//            cout<<"push. i = " << i <<endl;
+//            cout << "from2 10 = " << keypoints1[matches[10].queryIdx].pt << endl;
+//            cout << "to2 10 = " << keypoints2[matches[10].queryIdx].pt << endl;
+//            cout << "from2 26 = " << keypoints1[matches[26].queryIdx].pt << endl;
+//            cout << "to2 26 = " << keypoints2[matches[26].queryIdx].pt << endl;
+//            good_matches.push_back( matches[10] );
+//            good_matches.push_back( matches[26] );
+//        }
+
+            //以距離及XY值變化量做條件的特徵點篩選  失敗
+//        Point2f from = keypoints1[matches[i].queryIdx].pt;
+//        Point2f to = keypoints2[matches[i].trainIdx].pt;
+//        double dist = sqrt((from.x - to.x) * (from.x - to.x) + (from.y - to.y) * (from.y - to.y));
+
+//        cout << "from.x = " << from.x << ", from.y = " << from.y << endl;
+//        cout << "to.x = " << to.x << ", to.y = " << to.y << endl;
+//        cout << "slope = " << (double)(from.y - to.y) / (double)(from.x - to.x) << endl;
+//        cout << "tresholdDist = " << tresholdDist << endl;
+//        cout << "deltaY = " << deltaY << endl;
+//        cout << "dist = " << dist << endl;
+//        cout << "distance = " << matches[i].distance << endl;
+//
+//        if(dist < tresholdDist && abs(to.y - from.y) < deltaY  && abs(to.x - from.x) < deltaX)
+//        {
+//            good_matches.push_back( matches[i] );
+//            cout<<"push. i = " << i <<endl;
+//        }
+
         good_matches.push_back( matches[i] );
+//        cout<<"push. i = " << i <<endl;
+//        cout<<endl;
     }
     cout << "\nMax distance: " << maxDist << endl;
     cout << "Min distance: " << minDist << endl;
 
-    cout << "Calculating homography using " << ptsPairs << " point pairs." << endl;
+    cout << "Calculating homography using " << good_matches.size() << " point pairs." << endl;
 
     // drawing the results
     Mat img_matches;
@@ -115,12 +188,18 @@ static Mat drawGoodMatches(
     Mat H2 = findHomography( scene,  obj);
     perspectiveTransform( obj_corners, scene_corners, H);
 
-    //imshow("image1", img1);
-    //imshow("image2", img2);
+//    for(int index = 0; index < 4; index++)
+//    {
+//        cout << "scene_corners[" <<  index << "] = " << scene_corners[index] << endl;
+//        cout << "obj_corners[" <<  index << "] = " << obj_corners[index] << endl;
+//    }
+
+    imshow("image1", img1);//樣本
+    imshow("image2", img2);//場景
     Size size(img1.cols,img1.rows);
     Mat tempMat = Mat::zeros(size,CV_8UC3);
     warpPerspective(img2, tempMat, H2, size);
-    imshow("temp_image", tempMat);
+    imshow("output_image", tempMat);
 
     scene_corners_ = scene_corners;
 
@@ -137,7 +216,9 @@ static Mat drawGoodMatches(
     line( img_matches,
           scene_corners[3] + Point2f( (float)img1.cols, 0), scene_corners[0] + Point2f( (float)img1.cols, 0),
           Scalar( 0, 255, 0), 2, LINE_AA );
-    return img_matches;
+    resize(img_matches,img_matches,Size(800, 480));
+    imshow("goodMatch_image", img_matches);
+    return tempMat;
 }
 
 static Mat CutGoodArea(
@@ -239,7 +320,9 @@ Mat SurfMatch(Mat img1, Mat img2)
     vector<Point2f> corner;
     //Mat img_matches = drawGoodMatches(img1.getMat(ACCESS_READ), img2.getMat(ACCESS_READ), keypoints1, keypoints2, matches, corner);
     //Mat img_matches = drawGoodMatches(img1, img2, keypoints1, keypoints2, matches, corner);
-    Mat imgIdentifyCard = CutGoodArea(img1, img2, keypoints1, keypoints2, matches, corner);
+    //Mat imgIdentifyCard = CutGoodArea(img1, img2, keypoints1, keypoints2, matches, corner);
+
+    Mat imgIdentifyCard = drawGoodMatches(img1, img2, keypoints1, keypoints2, matches, corner);
 
     //-- Show detected matches
 
