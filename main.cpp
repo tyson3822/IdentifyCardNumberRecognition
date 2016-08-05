@@ -1,3 +1,18 @@
+/*
+*   Copyright 2016 Tai-Yuan Chen
+*   Licensed under the Apache License, Version 2.0 (the "License");
+*   you may not use this file except in compliance with the License.
+*   You may obtain a copy of the License at
+*
+*       http://www.apache.org/licenses/LICENSE-2.0
+*
+*   Unless required by applicable law or agreed to in writing, software
+*   distributed under the License is distributed on an "AS IS" BASIS,
+*   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*   See the License for the specific language governing permissions and
+*   limitations under the License.
+*/
+
 #include "opencv2/core/utility.hpp"
 #include "opencv2/core/ocl.hpp"
 #include "opencv2/video/tracking.hpp"
@@ -19,8 +34,8 @@
 #include "Camshift.hpp"
 #include "SurfMatcher.hpp"
 #include "TestFile.hpp"
-#include "ColorBalance.hpp"
 #include "BlurDectection.hpp"
+#include "GetCardMat.hpp"
 
 using namespace std;
 using namespace cv;
@@ -36,7 +51,7 @@ int main(int argc, const char ** argv)
     Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
     _TF.InitTestFile(argv[2], argv[3], argv[4]);//input,output,result
 
-    for(int index = 0; index < 15; index++)
+    for(int index = 3; index < 4; index++)
     {
         strcpy(scenePath, "../scene/");
         //讀取scene
@@ -82,14 +97,21 @@ int main(int argc, const char ** argv)
     //
     //    _TF.Close();
         //File測試結束
+        resize(imgScene, imgScene, Size(800, 480));
+        double rate = ((double)imgScene.cols / (double)imgObject.cols);
+        resize(imgObject, imgObject, Size(imgObject.cols * rate, imgObject.rows * rate));
+        //Mat imgID =  SurfMatch(imgObject, imgScene);//切割出身份證樣本區域
+        Mat imgID =  GetCardMat(imgObject, imgScene);//切割出身份證樣本區域
 
-        Mat imgID =  SurfMatch(imgObject, imgScene);//切割出身份證樣本區域
+        waitKey(0);
+        return EXIT_SUCCESS;
+
         //驗證樣本區域size是否大於size(800(寬),480(高))
         resize(imgID, imgID, Size(800, 480));//大於的話就resize成較好辨識的大小；否則不辨識
         imshow("resized", imgID);
 
         //割出身份證字號樣本
-        Mat imgIdNumber = imgID(Rect(580, 400, 210, 70)).clone();
+        Mat imgIdNumber = imgID(Rect(570, 400, 210, 70)).clone();
         imshow("IdNumber", imgIdNumber);
         char imgIdNumberName[] = "/IdNum.png";
         char imgIdNumberPath[50];
@@ -121,7 +143,7 @@ int main(int argc, const char ** argv)
         {
             char charNum[1];
             sprintf(charNum, "%d", i);
-            imshow(charNum, subNumber[i]);
+            //imshow(charNum, subNumber[i]);
 
             char fileName[] = "/subNum";
             strcat(fileName, charNum);
@@ -189,9 +211,9 @@ int main(int argc, const char ** argv)
         imwrite(imgBiraryIdNumberPath, imgIdNumber);
 
         //閉合(先膨脹再侵蝕)
-        Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
-        Mat closeImg;
-        morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
+//        Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
+//        Mat closeImg;
+//        morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
 
         //中值濾波
         char imgMedianIdNumberPath[50];
@@ -219,6 +241,7 @@ int main(int argc, const char ** argv)
         //camshift2(output);
 
         _TF.WriteToOutput(outputString);
+
     }
 
     _TF.WriteDownOutput();
