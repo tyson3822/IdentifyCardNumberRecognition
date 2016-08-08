@@ -21,7 +21,7 @@ void ColorBalance(Mat& in, Mat& out, float percent) {
         cv::sort(flat,flat,CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
         int lowval = flat.at<uchar>(cvFloor(((float)flat.cols) * half_percent));
         int highval = flat.at<uchar>(cvCeil(((float)flat.cols) * (1.0 - half_percent)));
-        cout << "lowval = " << lowval << ", highval = " << highval << endl;
+        //cout << "lowval = " << lowval << ", highval = " << highval << endl;
 
         //saturate below the low percentile and above the high percentile
         tmpsplit[i].setTo(lowval,tmpsplit[i] < lowval);

@@ -51,7 +51,7 @@ int main(int argc, const char ** argv)
     Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
     _TF.InitTestFile(argv[2], argv[3], argv[4]);//input,output,result
 
-    for(int index = 3; index < 4; index++)
+    for(int index = 26; index < 27; index++)
     {
         strcpy(scenePath, "../scene/");
         //讀取scene
@@ -68,50 +68,17 @@ int main(int argc, const char ** argv)
 
         //將圖片檔名稱去除副檔名
         char  imageBasePath[20] = "../imageOutput/";
-        int folderIndex = index + 1;
+        int folderIndex = index;
         char folderIndexChar[5];
         sprintf(folderIndexChar, "%d", folderIndex);
         strcpy(folderIndexChar, _TF.FillDigit(folderIndexChar));
         cout << "folderIndexChar = " << folderIndexChar << endl;
 
-//        waitKey(0);
-//        return EXIT_SUCCESS;
-
-        //先色彩平衡再灰階  失敗
-        //Mat imgSceneCB;
-        //Mat imgObjectCB;
-        //ColorBalance(imgScene,imgSceneCB,1);
-        //ColorBalance(imgObject,imgObjectCB,1);
-
-        //Mat imgSceneGary;
-        //Mat imgObjectGary;
-        //cvtColor(imgSceneCB, imgSceneGary, CV_BGR2GRAY);
-        //cvtColor(imgObjectCB, imgObjectGary, CV_BGR2GRAY);
-
-        //File測試
-    //    for(int i = 0; i < _TF.GetImgVectorSize(); i++)
-    //    {
-    //        _TF.WriteToOutput(_TF.GetImgByIndex(i));
-    //    }
-    //    _TF.WriteDownOutput();
-    //
-    //    _TF.Close();
-        //File測試結束
-        resize(imgScene, imgScene, Size(800, 480));
-        double rate = ((double)imgScene.cols / (double)imgObject.cols);
-        resize(imgObject, imgObject, Size(imgObject.cols * rate, imgObject.rows * rate));
-        //Mat imgID =  SurfMatch(imgObject, imgScene);//切割出身份證樣本區域
-        Mat imgID =  GetCardMat(imgObject, imgScene);//切割出身份證樣本區域
-
-        waitKey(0);
-        return EXIT_SUCCESS;
-
-        //驗證樣本區域size是否大於size(800(寬),480(高))
-        resize(imgID, imgID, Size(800, 480));//大於的話就resize成較好辨識的大小；否則不辨識
-        imshow("resized", imgID);
+        Mat imgID(480, 800, CV_8UC3, Scalar::all(0));
+        GetCardMat(imgScene, imgID);//切割出身份證樣本區域  //驗證樣本區域size是否大於size(800(寬),480(高))
 
         //割出身份證字號樣本
-        Mat imgIdNumber = imgID(Rect(570, 400, 210, 70)).clone();
+        Mat imgIdNumber = imgID(Rect(570, 400, 220, 70)).clone();
         imshow("IdNumber", imgIdNumber);
         char imgIdNumberName[] = "/IdNum.png";
         char imgIdNumberPath[50];
@@ -119,42 +86,43 @@ int main(int argc, const char ** argv)
         cout << "imgIdNumberPath = " << imgIdNumberPath << endl;
         imwrite(imgIdNumberPath, imgIdNumber);
 
+///非必要 除錯用
         //把身份證字號樣本放到較大的黑底圖上
-        Mat bigSizeMat(960, 1280, CV_8UC3, Scalar::all(0));
-        imgIdNumber.copyTo(bigSizeMat(Rect(100, 100, imgIdNumber.cols, imgIdNumber.rows)));
-        char imgBigSizeName[] = "/bigSizeMat.png";
-        char imgBigSizePath[50];
-        strcpy(imgBigSizePath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgBigSizeName));
-        imwrite(imgBigSizePath, bigSizeMat);
-
-        //割出字號上每個數字到subNumber
-        vector<Mat> subNumber;
-        for(int i = 0; i < 10; i++)
-        {
-            Mat subMat = imgIdNumber(Rect(i * 21, 0, 21, 70)).clone();
-            Mat bigSizeSubMat(960, 1280, CV_8UC3, Scalar::all(0));//用成大圖片 較好用OCR
-            subMat.copyTo(bigSizeSubMat(Rect(50, 50, subMat.cols, subMat.rows)));
-            subNumber.push_back(bigSizeSubMat);//切割成一個一個的數字
-        }
-
-        //顯示各個數字＆儲存
-        char imgSubIdNumberPath[50];
-        for(int i = 0; i < 10; i++)
-        {
-            char charNum[1];
-            sprintf(charNum, "%d", i);
-            //imshow(charNum, subNumber[i]);
-
-            char fileName[] = "/subNum";
-            strcat(fileName, charNum);
-            char type[] = ".png";
-            strcat(fileName, type);
-
-            strcpy(imgSubIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, fileName));
-
-            cout << "imgSubIdNumberPath = " << imgSubIdNumberPath << endl;
-            imwrite(imgSubIdNumberPath, subNumber[i]);
-        }
+//        Mat bigSizeMat(960, 1280, CV_8UC3, Scalar::all(0));
+//        imgIdNumber.copyTo(bigSizeMat(Rect(100, 100, imgIdNumber.cols, imgIdNumber.rows)));
+//        char imgBigSizeName[] = "/bigSizeMat.png";
+//        char imgBigSizePath[50];
+//        strcpy(imgBigSizePath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgBigSizeName));
+//        imwrite(imgBigSizePath, bigSizeMat);
+//
+//        //割出字號上每個數字到subNumber
+//        vector<Mat> subNumber;
+//        for(int i = 0; i < 10; i++)
+//        {
+//            Mat subMat = imgIdNumber(Rect(i * 21, 0, 21, 70)).clone();
+//            Mat bigSizeSubMat(960, 1280, CV_8UC3, Scalar::all(0));//用成大圖片 較好用OCR
+//            subMat.copyTo(bigSizeSubMat(Rect(50, 50, subMat.cols, subMat.rows)));
+//            subNumber.push_back(bigSizeSubMat);//切割成一個一個的數字
+//        }
+//
+//        //顯示各個數字＆儲存
+//        char imgSubIdNumberPath[50];
+//        for(int i = 0; i < 10; i++)
+//        {
+//            char charNum[1];
+//            sprintf(charNum, "%d", i);
+//            //imshow(charNum, subNumber[i]);
+//
+//            char fileName[] = "/subNum";
+//            strcat(fileName, charNum);
+//            char type[] = ".png";
+//            strcat(fileName, type);
+//
+//            strcpy(imgSubIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, fileName));
+//
+//            cout << "imgSubIdNumberPath = " << imgSubIdNumberPath << endl;
+//            imwrite(imgSubIdNumberPath, subNumber[i]);
+//        }
 
         //灰階
         char imgGrayIdNumberPath[50];
@@ -175,39 +143,40 @@ int main(int argc, const char ** argv)
         double thresh = 127;
         double maxValue = 255;
 
-        Mat whiteWord;
-        Mat whiteLight;
-        char whiteWordPath[50];
-        char whiteWordName[20];
-        char whiteLightPath[50];
-        char whiteLightName[20];
-        int threshTemp;
-        for(int i = 0; i < 8; i++)
-        {
-            threshTemp = i * 32;
-            char s1[10];
-            sprintf(s1, "%d", threshTemp);
-
-            threshold(imgIdNumber,whiteWord,threshTemp, maxValue, THRESH_BINARY_INV);//字變白底變黑
-            strcpy(whiteWordName, "/1_whiteWord");
-            strcat(whiteWordName, s1);
-            strcat(whiteWordName, ".png");
-            strcpy(whiteWordPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, whiteWordName));
-            imwrite(whiteWordPath, whiteWord);
-
-            threshold(imgIdNumber,whiteLight, threshTemp, maxValue, THRESH_BINARY);//反光變白
-            strcpy(whiteLightName, "/2_whiteLight");
-            strcat(whiteLightName, s1);
-            strcat(whiteLightName, ".png");
-            strcpy(whiteLightPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, whiteLightName));
-            imwrite(whiteLightPath,whiteLight);
-        }
+///非必要  除錯用
+//        Mat whiteWord;
+//        Mat whiteLight;
+//        char whiteWordPath[50];
+//        char whiteWordName[20];
+//        char whiteLightPath[50];
+//        char whiteLightName[20];
+//        int threshTemp;
+//        for(int i = 0; i < 8; i++)
+//        {
+//            threshTemp = i * 32;
+//            char s1[10];
+//            sprintf(s1, "%d", threshTemp);
+//
+//            threshold(imgIdNumber,whiteWord,threshTemp, maxValue, THRESH_BINARY_INV);//字變白底變黑
+//            strcpy(whiteWordName, "/1_whiteWord");
+//            strcat(whiteWordName, s1);
+//            strcat(whiteWordName, ".png");
+//            strcpy(whiteWordPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, whiteWordName));
+//            imwrite(whiteWordPath, whiteWord);
+//
+//            threshold(imgIdNumber,whiteLight, threshTemp, maxValue, THRESH_BINARY);//反光變白
+//            strcpy(whiteLightName, "/2_whiteLight");
+//            strcat(whiteLightName, s1);
+//            strcat(whiteLightName, ".png");
+//            strcpy(whiteLightPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, whiteLightName));
+//            imwrite(whiteLightPath,whiteLight);
+//        }
 
         // Binary Threshold
         char imgBiraryIdNumberPath[50];
         char imgBinaryName[] = "/imgIdNumber_binary.png";
         threshold(imgIdNumber,imgIdNumber, 32, maxValue, THRESH_BINARY_INV);//字變白底變黑
-        strcpy(imgBiraryIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgBigSizeName));
+        strcpy(imgBiraryIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgBinaryName));
         imwrite(imgBiraryIdNumberPath, imgIdNumber);
 
         //閉合(先膨脹再侵蝕)
