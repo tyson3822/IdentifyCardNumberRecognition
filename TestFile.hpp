@@ -144,7 +144,7 @@ public:
     void MatchResult()
     {
         ViewVector('o');
-        ViewVector('t');
+        //ViewVector('t');
         char outputCharArr[100];
         char testCharArr[100];
         for(int index = 0; index < outputBuffer.size(); index++)

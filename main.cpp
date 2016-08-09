@@ -34,7 +34,7 @@
 #include "Camshift.hpp"
 #include "SurfMatcher.hpp"
 #include "TestFile.hpp"
-#include "BlurDectection.hpp"
+#include "BlurDetection.hpp"
 #include "GetCardMat.hpp"
 
 using namespace std;
@@ -47,24 +47,27 @@ TestFile _TF;
 
 int main(int argc, const char ** argv)
 {
-    //匯入檔案
+    cout << "--start identity card recognition program--" << endl;
+    //匯入測試檔案
     Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
     _TF.InitTestFile(argv[2], argv[3], argv[4]);//input,output,result
 
     for(int index = 26; index < 27; index++)
     {
+        //讀取scene的文字路徑處理
         strcpy(scenePath, "../scene/");
-        //讀取scene
-        //imgBuffer = new char[_TF.GetImgByIndex(index).length() + 1];
         char imgBuffer[50];
         strcpy(imgBuffer, _TF.GetImgByIndex(index).c_str());
         strcat(scenePath, imgBuffer);    //從檔案輸入scene圖片及加上路徑
-
-        cout << "scenePath = " << scenePath << endl;
         Mat imgScene = imread(scenePath , IMREAD_COLOR );  //讀取場景圖片
+        cout << "scenePath = " << scenePath << endl;
 
-        //模糊偵測
-        //BlurDectect(imgScene);
+        //模糊偵測過度模糊的話就忽略
+        if(BlurDectect(imgScene))
+        {
+            cout << "--this image is blurry, ignore." << endl << endl;
+            continue;
+        }
 
         //將圖片檔名稱去除副檔名
         char  imageBasePath[20] = "../imageOutput/";
@@ -74,10 +77,12 @@ int main(int argc, const char ** argv)
         strcpy(folderIndexChar, _TF.FillDigit(folderIndexChar));
         cout << "folderIndexChar = " << folderIndexChar << endl;
 
+        //切割出場景上的身份證
         Mat imgID(480, 800, CV_8UC3, Scalar::all(0));
         GetCardMat(imgScene, imgID);//切割出身份證樣本區域  //驗證樣本區域size是否大於size(800(寬),480(高))
+        //imgID = imgScene.clone();
 
-        //割出身份證字號樣本
+        //割出身份證上的字號樣本
         Mat imgIdNumber = imgID(Rect(570, 400, 220, 70)).clone();
         imshow("IdNumber", imgIdNumber);
         char imgIdNumberName[] = "/IdNum.png";
@@ -124,16 +129,22 @@ int main(int argc, const char ** argv)
 //            imwrite(imgSubIdNumberPath, subNumber[i]);
 //        }
 
+        //pyrMeanShiftFiltering( imgIdNumber, imgIdNumber, 10, 10, 3);
+//        char imgGrayIdNumberName[] =  "/imgIdNumber_gray.png";
+//        cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);
+//        strcpy(imgGrayIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgGrayIdNumberName));
+//        imwrite(imgGrayIdNumberPath, imgIdNumber);
+
         //灰階
         char imgGrayIdNumberPath[50];
-        char imgGrayIdNumberName[] =  "/imgIdNumber_gray.png";
+        char imgGrayIdNumberName[] =  "/00imgIdNumber_gray.png";
         cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);
         strcpy(imgGrayIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgGrayIdNumberName));
         imwrite(imgGrayIdNumberPath, imgIdNumber);
 
         //做等化統計圖
         char imgEqualizeIdNumberPath[50];
-        char imgEqualizeIdNumberName[] =  "/imgIdNumber_Equalize.png";
+        char imgEqualizeIdNumberName[] =  "/01imgIdNumber_Equalize.png";
         equalizeHist( imgIdNumber, imgIdNumber );
         strcpy(imgEqualizeIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgEqualizeIdNumberName));
         imwrite(imgEqualizeIdNumberPath, imgIdNumber);
@@ -174,25 +185,24 @@ int main(int argc, const char ** argv)
 
         // Binary Threshold
         char imgBiraryIdNumberPath[50];
-        char imgBinaryName[] = "/imgIdNumber_binary.png";
+        char imgBinaryName[] = "/02imgIdNumber_binary.png";
         threshold(imgIdNumber,imgIdNumber, 32, maxValue, THRESH_BINARY_INV);//字變白底變黑
         strcpy(imgBiraryIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgBinaryName));
         imwrite(imgBiraryIdNumberPath, imgIdNumber);
 
         //閉合(先膨脹再侵蝕)
-//        Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
-//        Mat closeImg;
-//        morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
+        Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
+        Mat closeImg;
+        morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
 
         //中值濾波
         char imgMedianIdNumberPath[50];
-        char imgMedianName[] = "/imgIdNumber_medianBlur.png";
+        char imgMedianName[] = "/03imgIdNumber_medianBlur.png";
         medianBlur(imgIdNumber, imgIdNumber, 3);
         strcpy(imgMedianIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgMedianName));
         imwrite(imgMedianIdNumberPath, imgIdNumber);
 
         //OCR處理
-        //Mat imgTest =imread( "scenetext02.jpg", IMREAD_COLOR );
         tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
         api -> Init("/home/tyson/tessdata/", "eng", tesseract::OEM_DEFAULT);
         api -> SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
@@ -202,19 +212,22 @@ int main(int argc, const char ** argv)
         const char* eng = api -> GetUTF8Text();
         char outputString[15] = "";
         strncpy(outputString, eng, 10);
-        cout << "String:" <<  outputString << endl;
-
         api -> End();
-        //Mat img =imread( argv[1], IMREAD_COLOR );
-        //camshift(output);
-        //camshift2(output);
+
+        cout << "String:" <<  outputString << endl;
 
         _TF.WriteToOutput(outputString);
 
+        cout << endl;
     }
 
     _TF.WriteDownOutput();
+
+     cout << "--begin get test result--" << endl;
+
     _TF.MatchResult();
+
+    cout << "--program end--" << endl;
 
     waitKey(0);
     return EXIT_SUCCESS;
