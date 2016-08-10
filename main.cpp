@@ -30,6 +30,7 @@
 
 #include <iostream>
 #include <cctype>
+#include <dirent.h>
 
 #include "Camshift.hpp"
 #include "SurfMatcher.hpp"
@@ -47,12 +48,29 @@ TestFile _TF;
 
 int main(int argc, const char ** argv)
 {
+//    DIR *dir;
+//    struct dirent *ent;
+//    if ((dir = opendir ("../scene/")) != NULL)
+//    {
+//        /* print all the files and directories within directory */
+//        while ((ent = readdir (dir)) != NULL)
+//        {
+//            printf ("%s\n", ent->d_name);
+//        }
+//        closedir (dir);
+//    }
+//    else
+//    {
+//        /* could not open directory */
+//        perror ("");
+//        return EXIT_FAILURE;
+//    }
     cout << "--start identity card recognition program--" << endl;
     //匯入測試檔案
     Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
     _TF.InitTestFile(argv[2], argv[3], argv[4]);//input,output,result
 
-    for(int index = 26; index < 27; index++)
+    for(int index = 47; index < 52; index++)
     {
         //讀取scene的文字路徑處理
         strcpy(scenePath, "../scene/");
@@ -66,6 +84,7 @@ int main(int argc, const char ** argv)
         if(BlurDectect(imgScene))
         {
             cout << "--this image is blurry, ignore." << endl << endl;
+            _TF.WriteToOutputByIndex("ignore, blurry.", index);
             continue;
         }
 
@@ -216,18 +235,31 @@ int main(int argc, const char ** argv)
 
         cout << "String:" <<  outputString << endl;
 
-        _TF.WriteToOutput(outputString);
+        _TF.WriteToOutputByIndex(outputString, index);
+        //_TF.WriteToOutput(outputString);
 
         cout << endl;
     }
 
     _TF.WriteDownOutput();
 
-     cout << "--begin get test result--" << endl;
+     cout << endl << "--begin get test result--" << endl;
 
     _TF.MatchResult();
 
-    cout << "--program end--" << endl;
+    cout << endl << "--list the success test--" << endl;
+
+    _TF.ListSuccessTest();
+
+    cout << endl << "--list the failure test--" << endl;
+
+    _TF.ListFailureTest();
+
+    cout << endl << "--list the ignore test--" << endl;
+
+    _TF.ListIgnoreTest();
+
+    cout << endl << "--program end--" << endl;
 
     waitKey(0);
     return EXIT_SUCCESS;

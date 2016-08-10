@@ -55,6 +55,8 @@ public:
             test = string(pch); //char* to string
             testBuffer.push_back(test);
             //cout << "push " << test << " to test vector" << endl;
+
+            outputBuffer.resize(imgBuffer.size());
         }
     }
 
@@ -89,6 +91,7 @@ public:
         {
             case 'i':
             {
+                cout << "-list image name vector-" << endl;
                 for(int i  = 0; i < imgBuffer.size(); i++)
                 {
                     cout << "image vector " << i << " = " << imgBuffer[i] << endl;
@@ -97,6 +100,7 @@ public:
             }
             case 't':
             {
+                cout << "-list test vector-" << endl;
                 for(int i  = 0; i < testBuffer.size(); i++)
                 {
                     cout << "test vector " << i << " = " << testBuffer[i] << endl;
@@ -105,16 +109,20 @@ public:
             }
             case 'o':
             {
+                cout << "-list output vector-" << endl;
                  for(int i  = 0; i < outputBuffer.size(); i++)
                 {
+                    if(outputBuffer[i].size() < 1)continue;
                     cout << "output vector " << i << " = " << outputBuffer[i] << endl;
                 }
                 break;
             }
             case 'r':
             {
+                cout << "-list result vector-" << endl;
                  for(int i  = 0; i < resultBuffer.size(); i++)
                 {
+                     if(outputBuffer[i].size() < 1)continue;
                     cout << "result vector " << i << " = " << resultBuffer[i] << endl;
                 }
                 break;
@@ -129,6 +137,12 @@ public:
     void WriteToOutput(string str)
     {
         outputBuffer.push_back(str);
+    }
+
+     //把資料寫進output vector指定Index中
+    void WriteToOutputByIndex(string str, int index)
+    {
+        outputBuffer[index] = str;
     }
 
     //把資料寫進文件檔中
@@ -169,7 +183,79 @@ public:
         }
     }
 
-    //對比文字(Char)
+    //列出成功的test
+    void ListSuccessTest()
+    {
+        char trueChar[10];
+        char resultCharArr[100];
+        strcpy(trueChar, "true");
+         for(int i  = 0; i < resultBuffer.size(); i++)
+        {
+            if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
+            strcpy(resultCharArr, resultBuffer[i].c_str());
+             if(MatchChar(resultCharArr, trueChar) != 1)continue;//忽略掉不是true的
+            cout << "the result vector index by " << i << " = " << resultBuffer[i] << " is success." << endl;
+        }
+    }
+
+    //列出失敗的test
+    void ListFailureTest()
+    {
+        char falseChar[10];
+        char ignoreChar[10];
+         char resultCharArr[100];
+         char outputCharArr[100];
+        strcpy(falseChar, "false");
+        strcpy(ignoreChar, "ignore");
+         for(int i  = 0; i < resultBuffer.size(); i++)
+        {
+             if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
+
+             strcpy(resultCharArr, resultBuffer[i].c_str());
+             if(MatchChar(resultCharArr, falseChar) != 1)continue;//忽略掉不是false的
+
+             strncpy(outputCharArr, outputBuffer[i].c_str(), 6);
+             if(MatchChar(outputCharArr, ignoreChar) == 1)continue;//忽略掉是ignore的
+
+            cout << "the result vector index by " << i << " = " << resultBuffer[i] << " is failure." << endl;
+        }
+    }
+
+    void ListIgnoreTest()
+    {
+        char ignoreChar[10];
+        char outputCharArr[100];
+        strcpy(ignoreChar, "ignore");
+        for(int i  = 0; i < resultBuffer.size(); i++)
+        {
+             if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
+             strncpy(outputCharArr, outputBuffer[i].c_str(), 6);
+             if(MatchChar(outputCharArr, ignoreChar) != 1)continue;//忽略掉不是ignore的
+            cout << "the result vector index by " << i << " is " << outputBuffer[i] << endl;
+        }
+    }
+
+    int MatchString(string str1, string str2)//output,test
+    {
+        int result = 1;
+        int charIndex = 0;
+        char p1 = str1[charIndex];
+        char p2 = str2[charIndex];
+        if(p1 == '\0')return -1;
+        while(p1 != '\0')
+        {
+            //cout << "p1 = " << p1 << endl;
+            //cout << "p2 = " << p2 << endl;
+            if(p1 != p2)return -1;
+            if(p2 == '\0')return -1;
+           charIndex++;
+            p1 = str1[charIndex];
+            p2 = str2[charIndex];
+        }
+        return result;
+    }
+
+    //對比文字(Char) 回傳1一樣，回傳-1不一樣
     int MatchChar(char *str1, char *str2)//output,test
     {
         int result = 1;
