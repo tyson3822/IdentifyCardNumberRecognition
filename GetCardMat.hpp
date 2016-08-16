@@ -261,28 +261,30 @@ vector<Point2f> GetCardCorner()
     //顯示所有的大約輪廓及他們的最小矩形
     imshow( "all possible Contours", drawing );
 
-    //取得這些矩形中最小的那個index（為了濾掉可能是外框）
-    int minArea = 1000000;
-    int minCardRectIndex = 0;
-    for(int i = 0; i < cardRectPossibleIndex; i++)
+    if(cardRectPossibleIndex > 0)
     {
-        int cardArea = fabs(contourArea(cardRectPossible[i]));
-        if(cardArea < minArea)
+        //取得這些矩形中最小的那個index（為了濾掉可能是外框）
+        int minArea = 1000000;
+        int minCardRectIndex = 0;
+        for(int i = 0; i < cardRectPossibleIndex; i++)
         {
-            minArea = cardArea;
-            minCardRectIndex = i;
+            int cardArea = fabs(contourArea(cardRectPossible[i]));
+            if(cardArea < minArea)
+            {
+                minArea = cardArea;
+                minCardRectIndex = i;
+            }
         }
-    }
+        //將最終的矩形存到輸出矩形上
+        for(int i = 0; i < 4; i++)
+        {
+            cardCorner.push_back(cardRectPossible[minCardRectIndex][i]);
+            line( drawing, cardRectPossible[minCardRectIndex][i], cardRectPossible[minCardRectIndex][(i + 1) % 4], Scalar(255, 0, 0), 3, 8 );
+        }
 
-    //將最終的矩形存到輸出矩形上
-    for(int i = 0; i < 4; i++)
-    {
-        cardCorner.push_back(cardRectPossible[minCardRectIndex][i]);
-        line( drawing, cardRectPossible[minCardRectIndex][i], cardRectPossible[minCardRectIndex][(i + 1) % 4], Scalar(255, 0, 0), 3, 8 );
+        //將矩形的點重新排序成0左上 1右上 2右下 3左下
+        cardCorner = SortRectPoint(cardCorner);
     }
-
-    //將矩形的點重新排序成0左上 1右上 2右下 3左下
-    cardCorner = SortRectPoint(cardCorner);
 
     //顯示最終畫布
     resize(drawing, drawing, Size(800,600));
@@ -322,25 +324,35 @@ void GetCardMat( Mat& input, Mat& output)
     //取得場景中的身份證四角
     vector<Point2f> cardCornerInScene = GetCardCorner();
 
-    //將偵測出的四角還原到原圖大小上
-    rate = ((double)input.cols / (double)imgScene.cols);
-    for(int i = 0; i < 4; i ++)
-        cardCornerInScene[i] *= rate;
+    //如果場景中找到最小矩形
+    if(!cardCornerInScene.empty())
+    {
+        //將偵測出的四角還原到原圖大小上
+        rate = ((double)input.cols / (double)imgScene.cols);
+        for(int i = 0; i < 4; i ++)
+            cardCornerInScene[i] *= rate;
 
-    //設定身份證結果圖大小及四角
-    Size imgOutputSize = imgOutput.size();
-    vector<Point2f> outputCardCorner;
-    outputCardCorner.push_back(Point2f(0,0));
-    outputCardCorner.push_back(Point2f(imgOutputSize.width - 1, 0));
-    outputCardCorner.push_back(Point2f(imgOutputSize.width - 1, imgOutputSize.height -1));
-    outputCardCorner.push_back(Point2f(0, imgOutputSize.height - 1 ));
+        //設定身份證結果圖大小及四角
+        Size imgOutputSize = imgOutput.size();
+        vector<Point2f> outputCardCorner;
+        outputCardCorner.push_back(Point2f(0,0));
+        outputCardCorner.push_back(Point2f(imgOutputSize.width - 1, 0));
+        outputCardCorner.push_back(Point2f(imgOutputSize.width - 1, imgOutputSize.height -1));
+        outputCardCorner.push_back(Point2f(0, imgOutputSize.height - 1 ));
 
-    //找出轉換矩陣並將身份證切割出來到寬800長480的imgOutput上
-    Mat H = findHomography(cardCornerInScene, outputCardCorner);
-    warpPerspective(input, imgOutput, H, imgOutputSize);
+        //找出轉換矩陣並將身份證切割出來到寬800長480的imgOutput上
+        Mat H = findHomography(cardCornerInScene, outputCardCorner);
+        warpPerspective(input, imgOutput, H, imgOutputSize);
 
-    //顯示輸出身份證切割圖
-    imshow("imgOutput", imgOutput);
+        //顯示輸出身份證切割圖
+        imshow("imgOutput", imgOutput);
+    }
+    else
+    {
+        Mat emptyMat;
+        imgOutput = emptyMat.clone();
+    }
+
     output = imgOutput.clone();
 }
 

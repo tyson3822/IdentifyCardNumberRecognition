@@ -28,7 +28,7 @@ double VarianceOfLaplacian(const Mat& src)
     return focusMeasure;
 }
 
-bool BlurDectect(Mat img)
+float BlurDectect(Mat img)
 {
     Mat imgGary;
     cvtColor(img, imgGary, CV_BGR2GRAY);
@@ -43,6 +43,6 @@ bool BlurDectect(Mat img)
         isBlurry = true;
     }
 
-    cout << "the image is " << result << ", so that image is " << resultText << endl;
-    return isBlurry;
+    cout << "the image's variance of Laplacian = " << result << ", so that image is " << resultText << endl;
+    return result;
 }

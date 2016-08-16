@@ -4,7 +4,11 @@
 #include <stdlib.h>
 #include <vector>
 #include <string>
+#include <iomanip>
 using namespace std;
+
+#define PRINT_COUNT 0
+#define PRINT_RESULT 1
 
 class TestFile
 {
@@ -184,23 +188,50 @@ public:
     }
 
     //列出成功的test
-    void ListSuccessTest()
+    int ListSuccessTest(int mode)
     {
+        int successCount = 0;
+        vector<int> successListIndex;
+        vector<string> successListString;
         char trueChar[10];
         char resultCharArr[100];
         strcpy(trueChar, "true");
          for(int i  = 0; i < resultBuffer.size(); i++)
         {
             if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
+
             strcpy(resultCharArr, resultBuffer[i].c_str());
              if(MatchChar(resultCharArr, trueChar) != 1)continue;//忽略掉不是true的
-            cout << "the result vector index by " << i << " = " << resultBuffer[i] << " is success." << endl;
+
+            successListIndex.push_back(i);
+            successListString.push_back(outputBuffer[i]);
+            successCount++;
+
         }
+
+        if(mode == PRINT_COUNT)
+        {
+            return successCount;
+        }
+
+        if(mode == PRINT_RESULT)
+        {
+            if(successCount > 0)
+            {
+                cout << endl << "--list the success test--" << endl;
+                for(int i = 0; i < successCount; i++)
+                    cout << "the result vector index by " << successListIndex[i] << " = " << successListString[i] << " is success." << endl;
+            }
+        }
+        return 0;
     }
 
     //列出失敗的test
-    void ListFailureTest()
+    int ListFailureTest(int mode)
     {
+        int failureCount = 0;
+        vector<int> failureListIndex;
+        vector<string> failureListString;
         char falseChar[10];
         char ignoreChar[10];
          char resultCharArr[100];
@@ -215,26 +246,72 @@ public:
              if(MatchChar(resultCharArr, falseChar) != 1)continue;//忽略掉不是false的
 
              strncpy(outputCharArr, outputBuffer[i].c_str(), 6);
+             outputCharArr[6] = '\0';
              if(MatchChar(outputCharArr, ignoreChar) == 1)continue;//忽略掉是ignore的
 
-            cout << "the result vector index by " << i << " = " << resultBuffer[i] << " is failure." << endl;
+            failureListIndex.push_back(i);
+            failureListString.push_back(outputBuffer[i]);
+            failureCount++;
         }
+
+        if(mode == PRINT_COUNT)
+        {
+            return failureCount;
+        }
+
+        if(mode ==PRINT_RESULT)
+        {
+            if(failureCount > 0)
+            {
+                cout << endl << "--list the failure test--" << endl;
+                for(int i = 0; i < failureCount; i++)
+                    cout << "the result vector index by " << failureListIndex[i] << " = " << failureListString[i] << " is failure." << endl;
+            }
+        }
+        return 0;
     }
 
-    void ListIgnoreTest()
+    //列出忽略清單
+    int ListIgnoreTest(int mode)
     {
+        int ignoreCount = 0;
+        vector<int> ignoreListIndex;
+        vector<string> ignoreListString;
         char ignoreChar[10];
         char outputCharArr[100];
         strcpy(ignoreChar, "ignore");
         for(int i  = 0; i < resultBuffer.size(); i++)
         {
-             if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
-             strncpy(outputCharArr, outputBuffer[i].c_str(), 6);
-             if(MatchChar(outputCharArr, ignoreChar) != 1)continue;//忽略掉不是ignore的
-            cout << "the result vector index by " << i << " is " << outputBuffer[i] << endl;
+            if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
+
+            strncpy(outputCharArr, outputBuffer[i].c_str(), 6);
+            outputCharArr[6] = '\0';
+            if(MatchChar(outputCharArr, ignoreChar) != 1)continue;//忽略掉不是ignore的
+
+            ignoreListIndex.push_back(i);
+            ignoreListString.push_back(outputBuffer[i]);
+            ignoreCount++;
         }
+
+        if(mode ==PRINT_COUNT)
+        {
+            return ignoreCount;
+        }
+
+        if(mode == PRINT_RESULT)
+        {
+            if(ignoreCount > 0)
+            {
+                cout << endl << "--list the ignore test--" << endl;
+                for(int i = 0; i < ignoreCount; i++)
+                    cout << "the result vector index by " << ignoreListIndex[i] << " is " << ignoreListString[i] << endl;
+            }
+        }
+
+        return 0;
     }
 
+    //字串比對
     int MatchString(string str1, string str2)//output,test
     {
         int result = 1;
@@ -346,5 +423,26 @@ public:
         strcat(output, folderPath);
         strcat(output, fileName);
         return output;
+    }
+
+    void PrintResultData()
+    {
+        int successCount = ListSuccessTest(PRINT_COUNT);
+        int failureCount = ListFailureTest(PRINT_COUNT);
+        int ignoreCount = ListIgnoreTest(PRINT_COUNT);
+        int testCount = failureCount + successCount;
+        int totalCount = failureCount + successCount + ignoreCount;
+        double successRate = (double)successCount / (double)(testCount);
+        double failureRate = (double)failureCount / (double)(testCount);
+        cout << "--print the result data--" << endl;
+        cout << "the success count = " << successCount << "." << endl;
+        cout << "the failure count = " << failureCount << "." << endl;
+        cout << "the test count = " << testCount << "(success+failure)." << endl;
+        cout << endl;
+        cout << "the ignore count = " << ignoreCount << "." << endl;
+        cout << "the total count = " << totalCount << "(success+failure+ignore)." <<endl;
+        cout << endl;
+        cout << "the success rate = " << fixed << setprecision(2) << successRate << "(success/success+failure)." << endl;
+        cout << "the success rate = " << fixed << setprecision(2) << failureRate << "(failure/success+failure)." << endl;
     }
 };

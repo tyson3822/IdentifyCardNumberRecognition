@@ -37,10 +37,14 @@
 #include "TestFile.hpp"
 #include "BlurDetection.hpp"
 #include "GetCardMat.hpp"
+#include "CreatIDNumRandom.hpp"
 
 using namespace std;
 using namespace cv;
 using namespace cv::xfeatures2d;
+
+#define PRINT_COUNT 0
+#define PRINT_RESULT 1
 
 char scenePath[100] = "../scene/";
 //char diagonal[1] = "/";
@@ -70,7 +74,7 @@ int main(int argc, const char ** argv)
     Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
     _TF.InitTestFile(argv[2], argv[3], argv[4]);//input,output,result
 
-    for(int index = 47; index < 52; index++)
+    for(int index = 0; index <= 99; index++)
     {
         //讀取scene的文字路徑處理
         strcpy(scenePath, "../scene/");
@@ -81,10 +85,18 @@ int main(int argc, const char ** argv)
         cout << "scenePath = " << scenePath << endl;
 
         //模糊偵測過度模糊的話就忽略
-        if(BlurDectect(imgScene))
+        float varianceOfLaplacian = BlurDectect(imgScene);
+        if(varianceOfLaplacian < 300)
         {
             cout << "--this image is blurry, ignore." << endl << endl;
-            _TF.WriteToOutputByIndex("ignore, blurry.", index);
+
+            char blurryVOP[10];
+            char blurryMessage[100];
+            strcpy(blurryMessage, "ignore, blurry. the variance of Laplacian is ");
+            sprintf(blurryVOP, "%f", varianceOfLaplacian);
+            strcat(blurryMessage, blurryVOP);
+
+            _TF.WriteToOutputByIndex(blurryMessage, index);
             continue;
         }
 
@@ -99,10 +111,17 @@ int main(int argc, const char ** argv)
         //切割出場景上的身份證
         Mat imgID(480, 800, CV_8UC3, Scalar::all(0));
         GetCardMat(imgScene, imgID);//切割出身份證樣本區域  //驗證樣本區域size是否大於size(800(寬),480(高))
-        //imgID = imgScene.clone();
+
+        //如果場景上找不到身份證的話
+        if(imgID.empty())
+        {
+            cout << "--can't detect identity card in this image, ignore." << endl << endl;
+            _TF.WriteToOutputByIndex("ignore, can't find the identity card.", index);
+            continue;
+        }
 
         //割出身份證上的字號樣本
-        Mat imgIdNumber = imgID(Rect(570, 400, 220, 70)).clone();
+        Mat imgIdNumber = imgID(Rect(565, 400, 225, 70)).clone();
         imshow("IdNumber", imgIdNumber);
         char imgIdNumberName[] = "/IdNum.png";
         char imgIdNumberPath[50];
@@ -243,21 +262,17 @@ int main(int argc, const char ** argv)
 
     _TF.WriteDownOutput();
 
-     cout << endl << "--begin get test result--" << endl;
+     cout << endl << "--begin get test result--" << endl << endl;
 
     _TF.MatchResult();
 
-    cout << endl << "--list the success test--" << endl;
+    _TF.ListSuccessTest(PRINT_RESULT);
+    _TF.ListFailureTest(PRINT_RESULT);
+    _TF.ListIgnoreTest(PRINT_RESULT);
 
-    _TF.ListSuccessTest();
+    cout << endl;
 
-    cout << endl << "--list the failure test--" << endl;
-
-    _TF.ListFailureTest();
-
-    cout << endl << "--list the ignore test--" << endl;
-
-    _TF.ListIgnoreTest();
+    _TF.PrintResultData();
 
     cout << endl << "--program end--" << endl;
 
