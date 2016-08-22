@@ -30,10 +30,11 @@ Mat imgSceneGray;
 //}
 
 //vector順序變為0左上 1右上 2右下 3左下
-vector<Point2f> SortRectPoint(vector<Point2f> input)
+template <class T>
+void SortRectPoint(T& inputVector, T& outputVector)
 {
-    vector<Point2f> inputTemp = input;
-    vector<Point2f> output;
+    T inputTemp = inputVector;
+    T output;
     Point2f temp;
 
     int maxIndex = 0;
@@ -87,16 +88,7 @@ vector<Point2f> SortRectPoint(vector<Point2f> input)
     output[2] = output[3];
     output[3] = temp;
 
-    //做好排序的放到vector
-//    for(int i = 0; i < inputTemp.size(); i++)
-//        output.push_back(inputTemp[i]);
-
-    //把順序變為左上 右上 左下 右下
-//    temp = output[3];
-//    output[3] = output[1];
-//    output[1] = temp;
-
-    return output;
+    outputVector = output;
 }
 
 //vector<Point2f> FindCardCorner()
@@ -283,7 +275,7 @@ vector<Point2f> GetCardCorner()
         }
 
         //將矩形的點重新排序成0左上 1右上 2右下 3左下
-        cardCorner = SortRectPoint(cardCorner);
+        SortRectPoint(cardCorner, cardCorner);
     }
 
     //顯示最終畫布
@@ -417,3 +409,115 @@ void GetCardMat( Mat& input, Mat& output)
 //
 //    return imgOutput;
 //}
+
+struct str{
+    bool operator() ( Point a, Point b ){
+        if ( a.y != b.y )
+            return a.y < b.y;
+        return a.x <= b.x ;
+    }
+} comp;
+
+void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
+{
+    Mat inputTemp = input.clone();
+
+    Mat threshold_output;
+    vector<vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+
+    //canny取輪廓
+    Canny( inputTemp, threshold_output, 100, 200, 3 );
+    imshow("Canny", threshold_output);
+
+    //找輪廓存到contours
+    findContours( threshold_output, contours, hierarchy, CV_RETR_EXTERNAL , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+
+    //宣告大約輪廓（減少Point），最小矩形，有可能為身份證的矩形
+    vector<vector<Point> > contours_poly( contours.size() );
+    vector<RotatedRect> minRect( contours.size() );
+    vector<vector<Point> > identityNumber;
+    vector<Rect> boundRect;
+
+    //將每個輪廓取出大約的輪廓並將大約的輪廓用最小矩形包起
+    for( int i = 0; i < contours.size(); i++ )
+    {
+        approxPolyDP( Mat(contours[i]), contours_poly[i], 5, true );
+        minRect[i] = minAreaRect( (Mat)contours[i] );
+    }
+
+    int alphabetIndex = 0;
+    int identityNumberIndex = 0;
+    int identityNumberMinX = 999;
+    Mat drawing = Mat::zeros( threshold_output.size(), CV_8UC3 );
+    for( int i = 0; i < contours_poly.size(); i++ )
+    {
+        //當前大約輪廓的最小矩形
+        Point2f rect_points[4];
+        vector<Point> vectorRectPoints;
+        minRect[i].points( rect_points );
+
+        for(int index = 0; index < 4; index++)
+            vectorRectPoints.push_back(rect_points[index]);
+
+        //替除掉大小不合理的大約輪廓
+        if(fabs(contourArea(contours[i])) > 800 || fabs(contourArea(vectorRectPoints) < 100))//條件內的不要
+            continue;
+
+        identityNumber.push_back(vectorRectPoints);
+
+        SortRectPoint(vectorRectPoints, vectorRectPoints);
+
+        boundRect.push_back(boundingRect(Mat(vectorRectPoints)));
+        identityNumberIndex++;
+
+        //cout << "i = " << i << ", and fabs(contourArea(contours[" << i << "]) = " << fabs(contourArea(vectorRectPoints)) << endl;
+
+        //將這些大約輪廓畫在drawing上
+        Scalar color = Scalar(255, 255, 255);
+        drawContours( drawing, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+
+        //將最小舉行畫在drawing並列進可能為身份證矩形的vector中
+        rectangle(drawing, boundRect[identityNumberIndex - 1], Scalar(0, 255, 0), 1);
+//        for( int j = 0; j < 4; j++ )
+//        {
+//            line( drawing, rect_points[j], rect_points[(j+1)%4], Scalar(0, 255, 0), 1, 8 );
+//        }
+    }
+
+    for(int index = 0; index < identityNumber.size(); index++)
+    {
+        if(identityNumber[index][0].x < identityNumberMinX)
+        {
+            identityNumberMinX = identityNumber[index][0].x;
+            alphabetIndex = index;
+        }
+    }
+
+    Rect alphabetRect(boundRect[alphabetIndex]);
+//    if(alphabetRect.x < 0 || alphabetRect.x > outputAlphabet.cols || alphabetRect.y < 0 ||alphabetRect.y > outputAlphabet.rows)continue;
+//    if(alphabetRect.x + alphabetRect.width > outputAlphabet.cols || alphabetRect.y + alphabetRect.height > outputAlphabet.rows)continue;
+    inputTemp(Rect(alphabetRect)).copyTo(outputAlphabet(Rect(alphabetRect)));
+
+    for(int index = 0;index < identityNumber.size(); index++)
+    {
+        if(index == alphabetIndex)continue;
+        Rect numberRect(boundRect[index]);
+        if(numberRect.x < 0 || numberRect.x > outputNumber.cols || numberRect.y < 0 ||numberRect.y > outputNumber.rows)continue;
+        if(numberRect.x + numberRect.width > outputNumber.cols || numberRect.y + numberRect.height > outputNumber.rows)continue;
+        inputTemp(Rect(numberRect)).copyTo(outputNumber(Rect(numberRect)));
+    }
+
+    rectangle(drawing, boundRect[alphabetIndex], Scalar(0, 0, 255), 1);
+//    for( int j = 0; j < 4; j++ )
+//    {
+//        line( drawing, identityNumber[alphabetIndex][j], identityNumber[alphabetIndex][(j+1)%4], Scalar(0, 0, 255), 1, 8 );
+//    }
+
+    //顯示最終畫布
+    //resize(drawing, drawing, Size(800,600));
+    namedWindow( "result Contours", CV_WINDOW_AUTOSIZE );
+    imshow( "identity number all", drawing );
+    imshow( "output alphabet", outputAlphabet );
+    imshow( "output number", outputNumber );
+}

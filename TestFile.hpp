@@ -178,7 +178,7 @@ public:
             if(result == 1)resultBuffer.push_back("true");
             if(result == -1)resultBuffer.push_back("false");
         }
-        ViewVector('r');
+        //ViewVector('r');
 
         //所有測試結果寫進文件中
         for(int index = 0; index < resultBuffer.size(); index++)
@@ -443,6 +443,6 @@ public:
         cout << "the total count = " << totalCount << "(success+failure+ignore)." <<endl;
         cout << endl;
         cout << "the success rate = " << fixed << setprecision(2) << successRate << "(success/success+failure)." << endl;
-        cout << "the success rate = " << fixed << setprecision(2) << failureRate << "(failure/success+failure)." << endl;
+        cout << "the failure rate = " << fixed << setprecision(2) << failureRate << "(failure/success+failure)." << endl;
     }
 };

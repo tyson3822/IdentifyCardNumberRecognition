@@ -71,10 +71,12 @@ int main(int argc, const char ** argv)
 //    }
     cout << "--start identity card recognition program--" << endl;
     //匯入測試檔案
-    Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
-    _TF.InitTestFile(argv[2], argv[3], argv[4]);//input,output,result
+    //Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
+    _TF.InitTestFile(argv[1], argv[2], argv[3]);//input,output,result
+    int indexMin = atoi(argv[4]);
+    int indexMax = atoi(argv[5]);
 
-    for(int index = 0; index <= 99; index++)
+    for(int index = indexMin; index <= indexMax; index++)
     {
         //讀取scene的文字路徑處理
         strcpy(scenePath, "../scene/");
@@ -95,6 +97,7 @@ int main(int argc, const char ** argv)
             strcpy(blurryMessage, "ignore, blurry. the variance of Laplacian is ");
             sprintf(blurryVOP, "%f", varianceOfLaplacian);
             strcat(blurryMessage, blurryVOP);
+            strcat(blurryMessage, " (in the range 0 ~ 300)");
 
             _TF.WriteToOutputByIndex(blurryMessage, index);
             continue;
@@ -108,6 +111,11 @@ int main(int argc, const char ** argv)
         strcpy(folderIndexChar, _TF.FillDigit(folderIndexChar));
         cout << "folderIndexChar = " << folderIndexChar << endl;
 
+        //resize(imgScene,imgScene,Size(800,600));
+        //ColorFilterRed(imgScene, imgScene);
+        //imshow("ColorFilterRed", imgScene);
+        //waitKey(0);
+
         //切割出場景上的身份證
         Mat imgID(480, 800, CV_8UC3, Scalar::all(0));
         GetCardMat(imgScene, imgID);//切割出身份證樣本區域  //驗證樣本區域size是否大於size(800(寬),480(高))
@@ -120,6 +128,9 @@ int main(int argc, const char ** argv)
             continue;
         }
 
+//        Mat filterRedBin;   //原本
+//        ColorFilterRed(imgID, filterRedBin);
+
         //割出身份證上的字號樣本
         Mat imgIdNumber = imgID(Rect(565, 400, 225, 70)).clone();
         imshow("IdNumber", imgIdNumber);
@@ -128,6 +139,25 @@ int main(int argc, const char ** argv)
         strcpy(imgIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgIdNumberName));
         cout << "imgIdNumberPath = " << imgIdNumberPath << endl;
         imwrite(imgIdNumberPath, imgIdNumber);
+
+        int reflectionValue = CalculateReflectionValue(imgIdNumber);
+        if(reflectionValue > 5 || reflectionValue < 0)
+        {
+            cout << "--can't detect identity card number, maybe the image reflective, ignore." << endl << endl;
+
+            char reflectionCharArr[10];
+            char reflectionMessage[100];
+            strcpy(reflectionMessage, "ignore, the image have reflection, and value is ");
+            sprintf(reflectionCharArr, "%d", reflectionValue);
+            strcat(reflectionMessage, reflectionCharArr);
+            strcat(reflectionMessage, " (out of range 0 ~ 5).");
+
+            _TF.WriteToOutputByIndex(reflectionMessage, index);
+            continue;
+        }
+
+        Mat filterRedBin;
+        ColorFilterRed(imgIdNumber, imgIdNumber);
 
 ///非必要 除錯用
         //把身份證字號樣本放到較大的黑底圖上
@@ -174,18 +204,18 @@ int main(int argc, const char ** argv)
 //        imwrite(imgGrayIdNumberPath, imgIdNumber);
 
         //灰階
-        char imgGrayIdNumberPath[50];
-        char imgGrayIdNumberName[] =  "/00imgIdNumber_gray.png";
-        cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);
-        strcpy(imgGrayIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgGrayIdNumberName));
-        imwrite(imgGrayIdNumberPath, imgIdNumber);
+//        char imgGrayIdNumberPath[50];
+//        char imgGrayIdNumberName[] =  "/00imgIdNumber_gray.png";
+//        cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);
+//        strcpy(imgGrayIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgGrayIdNumberName));
+//        imwrite(imgGrayIdNumberPath, imgIdNumber);
 
         //做等化統計圖
-        char imgEqualizeIdNumberPath[50];
-        char imgEqualizeIdNumberName[] =  "/01imgIdNumber_Equalize.png";
-        equalizeHist( imgIdNumber, imgIdNumber );
-        strcpy(imgEqualizeIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgEqualizeIdNumberName));
-        imwrite(imgEqualizeIdNumberPath, imgIdNumber);
+//        char imgEqualizeIdNumberPath[50];
+//        char imgEqualizeIdNumberName[] =  "/01imgIdNumber_Equalize.png";
+//        equalizeHist( imgIdNumber, imgIdNumber );
+//        strcpy(imgEqualizeIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgEqualizeIdNumberName));
+//        imwrite(imgEqualizeIdNumberPath, imgIdNumber);
 
         //二值化
         // Set threshold and maxValue
@@ -222,16 +252,11 @@ int main(int argc, const char ** argv)
 //        }
 
         // Binary Threshold
-        char imgBiraryIdNumberPath[50];
-        char imgBinaryName[] = "/02imgIdNumber_binary.png";
-        threshold(imgIdNumber,imgIdNumber, 32, maxValue, THRESH_BINARY_INV);//字變白底變黑
-        strcpy(imgBiraryIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgBinaryName));
-        imwrite(imgBiraryIdNumberPath, imgIdNumber);
-
-        //閉合(先膨脹再侵蝕)
-        Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
-        Mat closeImg;
-        morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
+//        char imgBiraryIdNumberPath[50];
+//        char imgBinaryName[] = "/02imgIdNumber_binary.png";
+//        threshold(imgIdNumber,imgIdNumber, 120, 255, THRESH_BINARY_INV);//字變白底變黑
+//        strcpy(imgBiraryIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgBinaryName));
+//        imwrite(imgBiraryIdNumberPath, imgIdNumber);
 
         //中值濾波
         char imgMedianIdNumberPath[50];
@@ -240,16 +265,48 @@ int main(int argc, const char ** argv)
         strcpy(imgMedianIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgMedianName));
         imwrite(imgMedianIdNumberPath, imgIdNumber);
 
+        //閉合(先膨脹再侵蝕)
+        Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
+        erode(imgIdNumber, imgIdNumber, element, Point(-1,-1), 2);//侵蝕
+        dilate(imgIdNumber, imgIdNumber, element, Point(-1,-1), 1);//膨脹
+        //morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
+        imshow("closeImg", imgIdNumber);
+
+        Mat singleAlphabet(imgIdNumber.size(), CV_8UC1, Scalar::all(255));
+        Mat multiNumbers(imgIdNumber.size(), CV_8UC1, Scalar::all(255));;
+        SeparateIdentityNumber(imgIdNumber, singleAlphabet, multiNumbers);
+
+//        int reflectionValue = CalculateReflectionValue(imgIdNumber);
+//        if(reflectionValue < 150)
+//        {
+//            cout << "--can't detect identity card number, maybe the image reflective, ignore." << endl << endl;
+//            _TF.WriteToOutputByIndex("ignore, the image have reflection.", index);
+//            continue;
+//        }
+
         //OCR處理
         tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
-        api -> Init("/home/tyson/tessdata/", "eng", tesseract::OEM_DEFAULT);
+        api -> Init("/home/tyson/tessdata/", "eng", tesseract::OEM_DEFAULT );
+
+        api -> TessBaseAPI::SetVariable("tessedit_char_whitelist", "0123456789");
         api -> SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
-        api -> SetImage((uchar*)imgIdNumber.data, imgIdNumber.size().width, imgIdNumber.size().height,
-            imgIdNumber.channels(), imgIdNumber.step1());
+
+        api -> SetImage((uchar*)multiNumbers.data, multiNumbers.size().width, multiNumbers.size().height,
+            multiNumbers.channels(), multiNumbers.step1());
         api -> Recognize(0);
-        const char* eng = api -> GetUTF8Text();
+        const char* num = api -> GetUTF8Text();
+
+        api -> TessBaseAPI::SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+        api -> SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
+
+        api -> SetImage((uchar*)singleAlphabet.data, singleAlphabet.size().width, singleAlphabet.size().height,
+            singleAlphabet.channels(), singleAlphabet.step1());
+        api -> Recognize(0);
+        const char* alphabet = api -> GetUTF8Text();
+
         char outputString[15] = "";
-        strncpy(outputString, eng, 10);
+        strncat(outputString, alphabet, 1);
+        strncat(outputString, num, 9);
         api -> End();
 
         cout << "String:" <<  outputString << endl;

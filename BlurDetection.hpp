@@ -18,7 +18,7 @@ double VarianceOfLaplacian(const Mat& src)
     //執行laplace演算法
     Laplacian( src, lap, CV_16S, 3, 1, 0, BORDER_DEFAULT );//CV_64F
     convertScaleAbs( lap, lap );
-    imshow("Laplacian", lap);
+    //imshow("Laplacian", lap);
 
     Scalar mu, sigma;
     meanStdDev(lap, mu, sigma);
@@ -37,7 +37,7 @@ float BlurDectect(Mat img)
     char resultText[100] = "Not Blurry";
 
     //偵測到模糊
-    if(result < 300)
+    if(result < 300 && result >= 0)
     {
         strcpy(resultText, "Blurry");
         isBlurry = true;
