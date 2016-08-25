@@ -7,8 +7,69 @@
 using namespace cv;
 using namespace std;
 
-/// perform the Simplest Color Balancing algorithm
-void ColorBalance(Mat& in, Mat& out, float percent) {
+//（main中使用）計算反光值，輸入影像為三通道
+int CalculateReflectionValue(Mat& in)
+{
+    int reflectionValue;
+
+    //將影像進行灰階
+    Mat grayImg;
+    cvtColor(in, grayImg, CV_BGR2GRAY);
+
+    //計算平均值
+    Scalar mean, sigma;
+    meanStdDev(grayImg, mean, sigma);
+
+    //兩種對統計圖動作的函數
+    //equalizeHist( grayImg, grayImg );
+    //normalize(grayImg, grayImg, 0, 255, NORM_MINMAX);
+
+    //指定閥值，進行二值化
+    int thresh = 1.2 * mean.val[0];
+    int highValue = 255;
+    int lowValue = 0;
+    grayImg.setTo(lowValue, grayImg< thresh);
+    grayImg.setTo(highValue, grayImg >= thresh);
+
+    //再次計算平均值（二值化的成像）
+    meanStdDev(grayImg, mean, sigma);
+
+    //回傳值計算
+    reflectionValue = mean.val[0];
+    cout << "reflection value = " << reflectionValue << endl;
+    return reflectionValue;
+}
+
+//（有使用在GetCardMat）利用灰階來濾波，輸入為單通道
+void BinaryFilterByThresh(Mat& in, Mat& out)
+{
+    Mat grayImg = in.clone();
+    //cvtColor(in, grayImg, CV_BGR2GRAY);
+
+    //計算平均值
+    Scalar mean, stddev;
+    meanStdDev(grayImg, mean, stddev);
+
+    //指定濾波閥值
+    int thresh = mean.val[0] * 0.85;//有equalizeHist 0.2
+    cout << "thresh = " << thresh << endl;
+
+    //進行濾波
+    grayImg.setTo(0, grayImg < thresh);
+    grayImg.setTo(255, grayImg >= thresh);
+
+    //輸出影像
+    imshow("grayImg", grayImg);
+    out = grayImg.clone();
+}
+
+//////////////////////////////////////////////////////
+//以下是沒使用但日後可以參考或擴增的功能//
+//////////////////////////////////////////////////////
+
+//（沒用到）簡單的利用三通道進行色彩平衡
+void ColorBalance(Mat& in, Mat& out, float percent)
+{
     assert(in.channels() == 3);
     assert(percent > 0 && percent < 100);
 
@@ -33,41 +94,13 @@ void ColorBalance(Mat& in, Mat& out, float percent) {
     merge(tmpsplit,out);
 }
 
-int CalculateReflectionValue(Mat& in)
+//原是用在sort排序用的struct
+struct myclass
 {
-    int reflectionValue;
-    Mat grayImg;
-    cvtColor(in, grayImg, CV_BGR2GRAY);
-
-    Scalar mean, sigma;
-    meanStdDev(grayImg, mean, sigma);
-
-    //equalizeHist( grayImg, grayImg );
-    //normalize(grayImg, grayImg, 0, 255, NORM_MINMAX);
-
-    int thresh = 1.2 * mean.val[0];
-    int highValue = 255;
-    int lowValue = 0;
-    grayImg.setTo(lowValue, grayImg< thresh);
-    grayImg.setTo(highValue, grayImg >= thresh);
-
-    meanStdDev(grayImg, mean, sigma);
-    //imshow("grayImg", grayImg);
-
-    //回傳值計算
-    //reflectionValue = sigma.val[0]*sigma.val[0];
-    reflectionValue = mean.val[0];
-    cout << "reflection value = " << reflectionValue << endl;
-
-    return reflectionValue;
-}
-
-struct myclass {
     bool operator() (cv::Point pt1, cv::Point pt2) { return (pt1.y < pt2.y);}
 } myobject;
 
-//typedef unsinged int uint;
-
+//（沒使用＆失敗）尋找統計圖上第一個出現最接近平均值index
 int FindFirstMeanIndex(Mat &in)
 {
     int meanIndex;
@@ -106,9 +139,9 @@ int FindFirstMeanIndex(Mat &in)
     return meanIndex;
 }
 
-//    SimplestCB(im, tmp, 1);
-
-void ColorFilterRed(Mat& in, Mat& out) {
+//（沒使用）本來是打算用R通道來濾波，只取紅色的身份證字號，但效果沒有灰階好
+void ColorFilterRed(Mat& in, Mat& out)
+{
     assert(in.channels() == 3);
 //    assert(percent > 0 && percent < 100);
 //
@@ -189,8 +222,6 @@ void ColorFilterRed(Mat& in, Mat& out) {
     out = grayImg.clone();
     //imshow("ColorFilterRed", out);
 }
-
-
 
 //http://docs.opencv.org/2.4/modules/core/doc/basic_structures.html#mat-reshape
 

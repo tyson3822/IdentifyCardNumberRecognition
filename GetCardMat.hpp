@@ -1,38 +1,17 @@
 #include <opencv2/opencv.hpp>
-#include "ColorBalance.hpp"
+#include "ChannelProcess.hpp"
 
 using namespace cv;
 using namespace std;
 
-//struct userdata{
-//    Mat im;
-//    vector<Point2f> points;
-//};
-
 Mat imgScene;
 Mat imgSceneGray;
-//int thresh = 50;
-//int max_thresh = 255;
-//RNG rng(12345);
 
-//void mouseHandler(int event, int x, int y, int flags, void* data_ptr)
-//{
-//    if  ( event == EVENT_LBUTTONDOWN )
-//    {
-//        userdata *data = ((userdata *) data_ptr);
-//        circle(data->im, Point(x,y),3,Scalar(0,255,255), 5, CV_AA);
-//        imshow("Image", data->im);
-//        if (data->points.size() < 4)
-//        {
-//            data->points.push_back(Point2f(x,y));
-//        }
-//    }
-//}
-
-//vector順序變為0左上 1右上 2右下 3左下
+//vector順序變為0左上 1右上 2右下 3左下，適用於橫向的長方形四點
 template <class T>
 void SortRectPoint(T& inputVector, T& outputVector)
 {
+    //前置
     T inputTemp = inputVector;
     T output;
     Point2f temp;
@@ -42,16 +21,21 @@ void SortRectPoint(T& inputVector, T& outputVector)
     double maxVal = 0;
     double minVal = 10000;
 
+    //以距離為條件 由進到遠進行泡沫排序
     for(int i = 0; i < inputTemp.size(); i++)
+    {
         for(int j = i + 1; j < inputTemp.size(); j++)
+        {
             if(sqrt(inputTemp[i].x * inputTemp[i].x + inputTemp[i].y * inputTemp[i].y) > sqrt(inputTemp[j].x * inputTemp[j].x + inputTemp[j].y * inputTemp[j].y))
             {
                 temp = inputTemp[i];
                 inputTemp[i] = inputTemp[j];
                 inputTemp[j] = temp;
             }
+        }
+    }
 
-
+    //找最近的點 並存起來
     for(int i = 0; i < inputTemp.size(); i++)
     {
         if(minVal > inputTemp[i].x + inputTemp[i].y)
@@ -60,9 +44,9 @@ void SortRectPoint(T& inputVector, T& outputVector)
             minIndex = i;
         }
     }
-
     output.push_back(inputTemp[minIndex]);
 
+    //找最遠的點 並存起來
     for(int i = 0; i < inputTemp.size(); i++)
     {
         if(maxVal < inputTemp[i].x + inputTemp[i].y)
@@ -71,19 +55,30 @@ void SortRectPoint(T& inputVector, T& outputVector)
             maxIndex = i;
         }
     }
+    output.push_back(inputTemp[maxIndex]);
 
+    //將其他的點也存起來
     for(int i = 0; i < inputTemp.size(); i++)
     {
         if(i == minIndex || i == maxIndex)continue;
         output.push_back(inputTemp[i]);
     }
 
-    output.push_back(inputTemp[maxIndex]);
+    //此時方形上編號順序為
+    ////////////////////////////////////////
+    // [0]                                                [3] //
+    //                                                            //
+    //                                                            //
+    //                                                            //
+    // [2]                                                [1] //
+    ////////////////////////////////////////
 
+    //故先將右上右下對調
     temp = output[1];
-    output[1] = output[2];
-    output[2] = temp;
+    output[1] = output[3];
+    output[3] = temp;
 
+    //左下右下對調
     temp = output[2];
     output[2] = output[3];
     output[3] = temp;
@@ -91,105 +86,7 @@ void SortRectPoint(T& inputVector, T& outputVector)
     outputVector = output;
 }
 
-//vector<Point2f> FindCardCorner()
-//{
-//    vector<Point2f> sceneCorner;
-//    Mat threshold_output;
-//    vector<vector<Point> > contours;
-//    vector<Vec4i> hierarchy;
-//
-//    //
-//    Canny( imgSceneGray, threshold_output, 0, 40, 3 );
-//
-//    imshow("Canny", threshold_output);
-//
-//    Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
-//    Mat closeImg;
-//    morphologyEx( threshold_output, threshold_output, MORPH_CLOSE, element);
-//
-//    imshow("Close", threshold_output);
-//
-//    // Detect edges using Threshold
-//    //threshold( imgSceneGray, threshold_output, thresh, 255, THRESH_BINARY );
-//    // Find contours
-//    findContours( threshold_output, contours, hierarchy, CV_RETR_CCOMP  , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
-//
-//    // Approximate contours to polygons + get bounding rects and circles
-//    vector<vector<Point> > contours_poly( contours.size() );
-//    vector<Rect> boundRect( contours.size() );
-//    vector<Point2f>center( contours.size() );
-//    vector<float>radius( contours.size() );
-//
-//    for( int i = 0; i < contours.size(); i++ )
-//    {
-//        //cout << "i = " << i << ", and fabs(contourArea(contours[" << i << "]) = " << fabs(contourArea(contours[i])) << endl;
-//        approxPolyDP( Mat(contours[i]), contours_poly[i], 3, true );
-//        boundRect[i] = boundingRect( Mat(contours_poly[i]) );
-//        minEnclosingCircle( (Mat)contours_poly[i], center[i], radius[i] );
-//    }
-//
-//
-//    // Draw polygonal contour + bonding rects + circles
-//    Mat drawing = Mat::zeros( threshold_output.size(), CV_8UC3 );
-//    for( int i = 0; i< contours.size(); i++ )
-//    {
-//        if(fabs(contourArea(contours_poly[i])) > 11200 || fabs(contourArea(contours_poly[i])) < 5000 || !isContourConvex(contours_poly[i]) )
-//            continue;
-//        cout << "i = " << i << ", and fabs(contourArea(contours_poly[" << i << "]) = " << fabs(contourArea(contours_poly[i])) << endl;
-//        Scalar color = Scalar(255, 255, 255);
-//        drawContours( drawing, contours_poly, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
-//        cout << "contours_poly[i]  = " << contours_poly[i] << endl;
-//
-//        vector<Point2f> contoursTemp;
-//        for(int index = 0; index < contours_poly[i].size(); index++)
-//            contoursTemp.push_back(contours_poly[i][index]);
-//        contoursTemp = SortVectorPoint(contoursTemp);
-//        vector<Point2f> resizeCorner;
-//        Point2f shiftDis;
-//
-//        for(int index = 0; index < 4; index++)
-//        {
-//            Point2f corner = contoursTemp[index];
-//            corner.x *= 6.25;
-//            corner.y *= 5.658;
-//            resizeCorner.push_back(corner);
-//        }
-//
-//        resizeCorner = SortVectorPoint(resizeCorner);
-//
-//        cout << "resizeCorner  = " << resizeCorner << endl;
-//
-//        shiftDis.x = resizeCorner[0].x -  contoursTemp[0].x + 0.21875 * sqrt((contoursTemp[0].x - contoursTemp[1].x) * (contoursTemp[0].x - contoursTemp[1].x) + (contoursTemp[0].y - contoursTemp[1].y) * (contoursTemp[0].y - contoursTemp[1].y));// + 0.035 * sqrt((resizeCorner[0].x - resizeCorner[1].x) * (resizeCorner[0].x - resizeCorner[1].x) + (resizeCorner[0].y - resizeCorner[1].y) * (resizeCorner[0].y - resizeCorner[1].y));
-//        shiftDis.y = resizeCorner[0].y -  contoursTemp[0].y + 0.45882 * sqrt((contoursTemp[0].x - contoursTemp[3].x) * (contoursTemp[0].x - contoursTemp[3].x) + (contoursTemp[0].y - contoursTemp[3].y) * (contoursTemp[0].y - contoursTemp[3].y));// + 0.081 * sqrt((resizeCorner[0].x - resizeCorner[3].x) * (resizeCorner[0].x - resizeCorner[3].x) + (resizeCorner[0].y - resizeCorner[3].y) * (resizeCorner[0].y - resizeCorner[3].y));
-//
-//        for(int index = 0; index < 4; index++)
-//        {
-//            resizeCorner[index].x -= shiftDis.x;
-//            resizeCorner[index].y -= shiftDis.y;
-//        }
-//
-//        for(int index = 0; index < 4; index++)
-//            line(drawing, resizeCorner[index % 4], resizeCorner[(index + 1) % 4], Scalar(0, 255, 0), 2, LINE_AA);
-//
-//        for(int index = 0; index < 4; index++)
-//            sceneCorner.push_back(resizeCorner[index]);
-//        //rectangle( drawing, boundRect[i].tl(), boundRect[i].br(), color, 1, 1, 0 );
-//        //circle( drawing, center[i], (int)radius[i], color, 2, 8, 0 );
-//    }
-//
-//    // Show in a window
-//    resize(drawing, drawing, Size(800,600));
-//    namedWindow( "Contours", CV_WINDOW_AUTOSIZE );
-//    imshow( "Contours", drawing );
-//
-////    sceneCorner.push_back(Point2f(boundRect[0].x,boundRect[0].y));
-////    sceneCorner.push_back(Point2f(boundRect[0].x + boundRect[0].width, boundRect[0].y));
-////    sceneCorner.push_back(Point2f(boundRect[0].x + boundRect[0].width, boundRect[0].y + boundRect[0].height));
-////    sceneCorner.push_back(Point2f(boundRect[0].x, boundRect[0].y + boundRect[0].height));
-//
-//    return sceneCorner;
-//}
-
+//為GetCardMat副程式 回傳找到身份證的四個角落點
 vector<Point2f> GetCardCorner()
 {
     vector<Point2f> cardCorner;
@@ -286,6 +183,7 @@ vector<Point2f> GetCardCorner()
     return cardCorner;
 }
 
+//為GetCardCorner主程式 從輸入影上切割出身份證
 void GetCardMat( Mat& input, Mat& output)
 {
     //輸出Mat長480寬800
@@ -348,90 +246,36 @@ void GetCardMat( Mat& input, Mat& output)
     output = imgOutput.clone();
 }
 
-//原版
-//Mat GetCardMat( Mat& img1, Mat& img2)
-//{
-//    imgObj = img1.clone();
-//    imgScene = img2.clone();
-//    Mat imgOutput;
-//
-//    Size size = imgObj.size();
-//
-//    // Create a vector of points.
-//    vector<Point2f> objCorner;
-//    objCorner.push_back(Point2f(0,0));
-//    objCorner.push_back(Point2f(size.width - 1, 0));
-//    objCorner.push_back(Point2f(size.width - 1, size.height -1));
-//    objCorner.push_back(Point2f(0, size.height - 1 ));
-//
-//
-//    // Set data for mouse handler
-//    imgOutput = imgScene.clone();
-////    userdata data;
-////    data.im = imgOutput;
-//
-//    //show the image
-//    imshow("Image", imgOutput);
-//
-//    //cout << "Click on four corners of a billboard and then press ENTER" << endl;
-//    //set the callback function for any mouse event
-//    Mat colorBalanceImg;
-//    ColorBalance(imgScene, colorBalanceImg, 1);
-//
-//    Mat meanShiftImg;
-//    pyrMeanShiftFiltering( colorBalanceImg, meanShiftImg, 30, 20, 3);
-//    imshow("meanShiftImg", meanShiftImg);
-//
-//    cvtColor( meanShiftImg, imgSceneGray, CV_BGR2GRAY );
-//    vector<Point2f> sceneCorner = GetCardCorner();
-//
-//    // Calculate Homography between source and destination points
-//    Mat H = findHomography(objCorner, sceneCorner);
-//
-//    // Warp source image
-//    warpPerspective(imgObj, imgOutput, H, imgOutput.size());
-//
-//    // Extract four points from mouse data
-//    Point pts_dst[4];
-//    for( int i = 0; i < 4; i++)
-//        pts_dst[i] = sceneCorner[i];
-//
-//    // Black out polygonal area in destination image.
-//    fillConvexPoly(imgScene, pts_dst, 4, Scalar(0), CV_AA);
-//
-//    // Add warped source image to destination image.
-//    imgScene = imgScene + imgOutput;
-//
-//    // Display image.
-//    resize(imgScene, imgScene, Size(800, 600));
-//    imshow("Image", imgScene);
-//    waitKey(0);
-//
-//    return imgOutput;
-//}
-
-struct str{
-    bool operator() ( Point a, Point b ){
-        if ( a.y != b.y )
-            return a.y < b.y;
-        return a.x <= b.x ;
-    }
-} comp;
-
+//把輸入的身份證字號影像分割成英文和數字兩個Mat輸出，輸入影像為三通道
 void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
 {
+    //複製原影像進行處理
     Mat inputTemp = input.clone();
 
+    //將影像進行灰階
+    cvtColor( inputTemp, inputTemp, CV_BGR2GRAY );
+
+    //將影像進行濾波
+    BinaryFilterByThresh(inputTemp, inputTemp);
+
+    //找輪廓前置
     Mat threshold_output;
     vector<vector<Point> > contours;
     vector<Vec4i> hierarchy;
 
+    //將影像進行膨脹
+    Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
+    //dilate(inputTemp, inputTemp, element, Point(-1,-1), 1);//侵蝕
+    erode(inputTemp, inputTemp, element, Point(-1,-1), 2);//膨脹
+    imshow("closeImg", inputTemp);
+
     //canny取輪廓
-    Canny( inputTemp, threshold_output, 100, 200, 3 );
-    imshow("Canny", threshold_output);
+    imshow("before Canny", inputTemp);
+    Canny( inputTemp, threshold_output, 0, 0, 3 );
+    imshow("after Canny", threshold_output);
 
     //找輪廓存到contours
-    findContours( threshold_output, contours, hierarchy, CV_RETR_EXTERNAL , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+    findContours( threshold_output, contours, hierarchy, CV_RETR_TREE , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
 
     //宣告大約輪廓（減少Point），最小矩形，有可能為身份證的矩形
     vector<vector<Point> > contours_poly( contours.size() );
@@ -446,21 +290,26 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
         minRect[i] = minAreaRect( (Mat)contours[i] );
     }
 
+    //宣告畫布，方便觀察
+    Mat drawing = Mat::zeros( threshold_output.size(), CV_8UC3 );
+
+    //暫存前置
     int alphabetIndex = 0;
     int identityNumberIndex = 0;
     int identityNumberMinX = 999;
-    Mat drawing = Mat::zeros( threshold_output.size(), CV_8UC3 );
+
     for( int i = 0; i < contours_poly.size(); i++ )
     {
         //當前大約輪廓的最小矩形
         Point2f rect_points[4];
-        vector<Point> vectorRectPoints;
         minRect[i].points( rect_points );
 
+        //把矩形存進vector<point>才可為後面算面積
+        vector<Point> vectorRectPoints;
         for(int index = 0; index < 4; index++)
             vectorRectPoints.push_back(rect_points[index]);
 
-        //替除掉大小不合理的大約輪廓
+        //篩選掉大小不合理的大約輪廓
         if(fabs(contourArea(contours[i])) > 800 || fabs(contourArea(vectorRectPoints) < 100))//條件內的不要
             continue;
 
@@ -468,6 +317,7 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
 
         SortRectPoint(vectorRectPoints, vectorRectPoints);
 
+        //將最小矩形取正矩形存起
         boundRect.push_back(boundingRect(Mat(vectorRectPoints)));
         identityNumberIndex++;
 
@@ -477,14 +327,11 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
         Scalar color = Scalar(255, 255, 255);
         drawContours( drawing, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
 
-        //將最小舉行畫在drawing並列進可能為身份證矩形的vector中
+        //將找到數字的矩形畫在drawing
         rectangle(drawing, boundRect[identityNumberIndex - 1], Scalar(0, 255, 0), 1);
-//        for( int j = 0; j < 4; j++ )
-//        {
-//            line( drawing, rect_points[j], rect_points[(j+1)%4], Scalar(0, 255, 0), 1, 8 );
-//        }
     }
 
+    //取得最左邊的矩形為字母
     for(int index = 0; index < identityNumber.size(); index++)
     {
         if(identityNumber[index][0].x < identityNumberMinX)
@@ -494,30 +341,56 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
         }
     }
 
+    //另外設一個矩形存字母
     Rect alphabetRect(boundRect[alphabetIndex]);
-//    if(alphabetRect.x < 0 || alphabetRect.x > outputAlphabet.cols || alphabetRect.y < 0 ||alphabetRect.y > outputAlphabet.rows)continue;
-//    if(alphabetRect.x + alphabetRect.width > outputAlphabet.cols || alphabetRect.y + alphabetRect.height > outputAlphabet.rows)continue;
-    inputTemp(Rect(alphabetRect)).copyTo(outputAlphabet(Rect(alphabetRect)));
 
-    for(int index = 0;index < identityNumber.size(); index++)
-    {
-        if(index == alphabetIndex)continue;
-        Rect numberRect(boundRect[index]);
-        if(numberRect.x < 0 || numberRect.x > outputNumber.cols || numberRect.y < 0 ||numberRect.y > outputNumber.rows)continue;
-        if(numberRect.x + numberRect.width > outputNumber.cols || numberRect.y + numberRect.height > outputNumber.rows)continue;
-        inputTemp(Rect(numberRect)).copyTo(outputNumber(Rect(numberRect)));
-    }
+    //找出字母區域與數字區域
+    Rect alphabetArea(0, 0, alphabetRect.x + alphabetRect.width, inputTemp.rows);
+    Rect numberArea(alphabetRect.x + alphabetRect.width, 0, inputTemp.cols - (alphabetRect.x + alphabetRect.width), inputTemp.rows);
 
+    //將原圖用上面的區域切割成兩個子區域（字母和字號）
+    input(Rect(alphabetArea)).copyTo(outputAlphabet);
+    input(Rect(numberArea)).copyTo(outputNumber);
+
+    //把字母正矩形劃上畫布
     rectangle(drawing, boundRect[alphabetIndex], Scalar(0, 0, 255), 1);
-//    for( int j = 0; j < 4; j++ )
-//    {
-//        line( drawing, identityNumber[alphabetIndex][j], identityNumber[alphabetIndex][(j+1)%4], Scalar(0, 0, 255), 1, 8 );
-//    }
 
     //顯示最終畫布
-    //resize(drawing, drawing, Size(800,600));
-    namedWindow( "result Contours", CV_WINDOW_AUTOSIZE );
     imshow( "identity number all", drawing );
     imshow( "output alphabet", outputAlphabet );
     imshow( "output number", outputNumber );
 }
+
+//////////////////////////////////////////////////////
+//以下是沒使用但日後可以參考或擴增的功能//
+//////////////////////////////////////////////////////
+
+//原是sort使用的struct
+//struct str{
+//    bool operator() ( Point a, Point b ){
+//        if ( a.y != b.y )
+//            return a.y < b.y;
+//        return a.x <= b.x ;
+//    }
+//} comp;
+
+//原為存使用者指定座標的struct
+//struct userdata{
+//    Mat im;
+//    vector<Point2f> points;
+//};
+
+//原為讓使用者自己店選影像上四點座標之handler
+//void mouseHandler(int event, int x, int y, int flags, void* data_ptr)
+//{
+//    if  ( event == EVENT_LBUTTONDOWN )
+//    {
+//        userdata *data = ((userdata *) data_ptr);
+//        circle(data->im, Point(x,y),3,Scalar(0,255,255), 5, CV_AA);
+//        imshow("Image", data->im);
+//        if (data->points.size() < 4)
+//        {
+//            data->points.push_back(Point2f(x,y));
+//        }
+//    }
+//}
