@@ -264,18 +264,21 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
     vector<Vec4i> hierarchy;
 
     //將影像進行膨脹
-    Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
-    //dilate(inputTemp, inputTemp, element, Point(-1,-1), 1);//侵蝕
-    erode(inputTemp, inputTemp, element, Point(-1,-1), 2);//膨脹
-    imshow("closeImg", inputTemp);
+//    Mat element = getStructuringElement(MORPH_RECT, Size(1, 10));
+//    //dilate(inputTemp, inputTemp, element, Point(-1,-1), 1);//侵蝕
+//    erode(inputTemp, inputTemp, element, Point(-1,-1), 1);//膨脹
+//    imshow("closeImg", inputTemp);
 
     //canny取輪廓
     imshow("before Canny", inputTemp);
     Canny( inputTemp, threshold_output, 0, 0, 3 );
+
+    Mat element2 = getStructuringElement(MORPH_RECT, Size(2, 2));
+    dilate(threshold_output, threshold_output, element2, Point(-1,-1), 1);//侵蝕
     imshow("after Canny", threshold_output);
 
     //找輪廓存到contours
-    findContours( threshold_output, contours, hierarchy, CV_RETR_TREE , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+    findContours( inputTemp, contours, hierarchy, CV_RETR_TREE , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
 
     //宣告大約輪廓（減少Point），最小矩形，有可能為身份證的矩形
     vector<vector<Point> > contours_poly( contours.size() );
@@ -331,6 +334,13 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
         rectangle(drawing, boundRect[identityNumberIndex - 1], Scalar(0, 255, 0), 1);
     }
 
+    Mat maskNum(input.size(), CV_8UC1, Scalar::all(255));
+    for(int index = 0; index < boundRect.size(); index++)
+    {
+        rectangle(maskNum, boundRect[index], Scalar(0, 0, 0), -1);
+    }
+    imshow("mask Num", maskNum);
+
     //取得最左邊的矩形為字母
     for(int index = 0; index < identityNumber.size(); index++)
     {
@@ -354,6 +364,153 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
 
     //把字母正矩形劃上畫布
     rectangle(drawing, boundRect[alphabetIndex], Scalar(0, 0, 255), 1);
+
+    //顯示最終畫布
+//    imshow( "identity number all", drawing );
+//    imshow( "output alphabet", outputAlphabet );
+//    imshow( "output number", outputNumber );
+}
+
+//把輸入的身份證字號影像分割成英文和數字兩個Mat輸出，輸入影像為三通道
+void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
+{
+    //複製原影像進行處理
+    Mat inputTemp = input.clone();
+
+    //將影像進行灰階
+    cvtColor( inputTemp, inputTemp, CV_BGR2GRAY );
+
+    //將影像進行濾波
+    BinaryFilterByThresh(inputTemp, inputTemp);
+
+    //找輪廓前置
+    Mat threshold_output;
+    vector<vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+
+    //將影像進行膨脹
+//    Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
+//    //dilate(inputTemp, inputTemp, element, Point(-1,-1), 1);//侵蝕
+//    erode(inputTemp, inputTemp, element, Point(-1,-1), 1);//膨脹
+//    imshow("closeImg", inputTemp);
+
+    //canny取輪廓
+    imshow("before Canny", inputTemp);
+    Canny( inputTemp, threshold_output, 0, 0, 3 );
+    imshow("after Canny", threshold_output);
+
+    Mat element2 = getStructuringElement(MORPH_RECT, Size(2, 2));
+    dilate(threshold_output, threshold_output, element2, Point(-1,-1), 1);//侵蝕
+//    imshow("after Canny", threshold_output);
+
+    //找輪廓存到contours
+    findContours( threshold_output, contours, hierarchy, CV_RETR_TREE , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+
+    //宣告大約輪廓（減少Point），最小矩形，有可能為身份證的矩形
+    //vector<vector<Point> > contours_poly( contours.size() );
+    vector<RotatedRect> minRect( contours.size() );
+    vector<vector<Point> > identityNumber;
+    vector<Rect> boundRect;
+
+    //將每個輪廓取出大約的輪廓並將大約的輪廓用最小矩形包起
+    for( int i = 0; i < contours.size(); i++ )
+    {
+        //approxPolyDP( Mat(contours[i]), contours_poly[i], 5, true );
+        minRect[i] = minAreaRect( (Mat)contours[i] );
+    }
+
+    //宣告畫布，方便觀察
+    Mat drawing = Mat::zeros( threshold_output.size(), CV_8UC3 );
+
+    //暫存前置
+    int alphabetIndex = 0;
+    int identityNumberIndex = 0;
+    int identityNumberMinX = 999;
+
+    for( int i = 0; i < contours.size(); i++ )
+    {
+        //當前大約輪廓的最小矩形
+        Point2f rect_points[4];
+        minRect[i].points( rect_points );
+
+        //把矩形存進vector<point>才可為後面算面積
+        vector<Point> vectorRectPoints;
+        for(int index = 0; index < 4; index++)
+            vectorRectPoints.push_back(rect_points[index]);
+
+        //篩選掉大小不合理的大約輪廓
+        if(fabs(contourArea(contours[i])) > 800 || fabs(contourArea(vectorRectPoints) < 100))//條件內的不要
+            continue;
+
+        SortRectPoint(vectorRectPoints, vectorRectPoints);
+
+        identityNumber.push_back(vectorRectPoints);
+
+        //將最小矩形取正矩形存起
+        boundRect.push_back(boundingRect(Mat(vectorRectPoints)));
+        identityNumberIndex++;
+
+        //cout << "i = " << i << ", and fabs(contourArea(contours[" << i << "]) = " << fabs(contourArea(vectorRectPoints)) << endl;
+
+        //將這些大約輪廓畫在drawing上
+        Scalar color = Scalar(255, 255, 255);
+        drawContours( drawing, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+
+        //將找到數字的矩形畫在drawing
+        rectangle(drawing, boundRect[identityNumberIndex - 1], Scalar(0, 255, 0), 1);
+    }
+
+    Mat maskNum(input.size(), CV_8UC1, Scalar::all(255));
+    for(int index = 0; index < boundRect.size(); index++)
+    {
+        rectangle(maskNum, boundRect[index], Scalar(0, 0, 0), -1);
+    }
+    imshow("mask Num", maskNum);
+
+    Canny(maskNum, maskNum, 0, 0, 3);
+
+    vector<vector<Point> > maskContours;
+    findContours(maskNum, maskContours, hierarchy, CV_RETR_TREE , CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+
+    Mat drawing2 = Mat::zeros( threshold_output.size(), CV_8UC3 );
+    vector<Rect> maskRect;
+    int rectIndexTemp = 0;
+    for(int index = 0; index < maskContours.size(); index++)
+    {
+        Rect rectTemp = boundingRect(maskContours[index]);
+        if(rectTemp.width > 35)continue;
+        //drawContours(drawing2, maskContours, index, Scalar(255, 255, 255));
+        maskRect.push_back(boundingRect(maskContours[index]));
+        rectangle(drawing2, maskRect[rectIndexTemp], Scalar(255, 255, 255), -1);
+        //cout <<  "maskRect = " << maskRect[rectIndexTemp] <<endl;
+        rectIndexTemp++;
+    }
+    imshow("drawing2", drawing2);
+
+    //取得最左邊的矩形為字母
+    for(int index = 0; index < maskRect.size(); index++)
+    {
+        if(maskRect[index].x < identityNumberMinX)
+        {
+            identityNumberMinX = maskRect[index].x;
+            alphabetIndex = index;
+        }
+    }
+    //cout << "alphabetIndex = " << alphabetIndex << maskRect[alphabetIndex]  <<endl;
+
+    //另外設一個矩形存字母
+    Rect alphabetRect(maskRect[alphabetIndex]);
+
+    //找出字母區域與數字區域
+    Rect alphabetArea(0, 0, alphabetRect.x + alphabetRect.width, inputTemp.rows);
+    Rect numberArea(alphabetRect.x + alphabetRect.width, 0, inputTemp.cols - (alphabetRect.x + alphabetRect.width), inputTemp.rows);
+
+    //將原圖用上面的區域切割成兩個子區域（字母和字號）
+    input(Rect(alphabetArea)).copyTo(outputAlphabet);
+    input(Rect(numberArea)).copyTo(outputNumber);
+
+    //把字母正矩形劃上畫布
+    rectangle(drawing, maskRect[alphabetIndex], Scalar(0, 0, 255), 1);
 
     //顯示最終畫布
     imshow( "identity number all", drawing );

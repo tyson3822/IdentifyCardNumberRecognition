@@ -51,8 +51,8 @@ void BinaryFilterByThresh(Mat& in, Mat& out)
     meanStdDev(grayImg, mean, stddev);
 
     //指定濾波閥值
-    int thresh = mean.val[0] * 0.85;//有equalizeHist 0.2
-    cout << "thresh = " << thresh << endl;
+    int thresh = mean.val[0] * 0.875;//原0.85 0.875效果不錯
+    //cout << "thresh = " << thresh << endl;
 
     //進行濾波
     grayImg.setTo(0, grayImg < thresh);

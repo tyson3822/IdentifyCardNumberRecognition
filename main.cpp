@@ -132,14 +132,30 @@ int main(int argc, const char ** argv)
 
         Mat singleAlphabet(imgIdNumber.size(), CV_8UC1, Scalar::all(255));
         Mat multiNumbers(imgIdNumber.size(), CV_8UC1, Scalar::all(255));;
-        SeparateIdentityNumber(imgIdNumber, singleAlphabet, multiNumbers);
+        //SeparateIdentityNumber(imgIdNumber, singleAlphabet, multiNumbers);
+        SeparateIdentityNumberMethod2(imgIdNumber, singleAlphabet, multiNumbers);
+
+        cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);
+        BinaryFilterByThresh(imgIdNumber, imgIdNumber);
+
+        imgIdNumber(Rect(0, 0, singleAlphabet.cols, singleAlphabet.rows)).copyTo(singleAlphabet);
+        imgIdNumber(Rect(singleAlphabet.cols, 0, multiNumbers.cols, multiNumbers.rows)).copyTo(multiNumbers);
+
+        imshow("singleAlphabet mat", singleAlphabet);
+        imshow("multiNumbers mat", multiNumbers);
 
         //OCR處理
         tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
         api -> Init("../", "kaiu_eng", tesseract::OEM_DEFAULT );
 
+//        api -> SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
+//        api -> SetImage((uchar*)imgIdNumber.data, imgIdNumber.size().width, imgIdNumber.size().height,
+//            imgIdNumber.channels(), imgIdNumber.step1());
+//        api -> Recognize(0);
+//        const char* eng = api -> GetUTF8Text();
+
         api -> TessBaseAPI::SetVariable("tessedit_char_whitelist", "0123456789");
-        api -> SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
+        api -> SetPageSegMode(tesseract::PSM_SINGLE_LINE );
 
         api -> SetImage((uchar*)multiNumbers.data, multiNumbers.size().width, multiNumbers.size().height,
             multiNumbers.channels(), multiNumbers.step1());
@@ -155,6 +171,7 @@ int main(int argc, const char ** argv)
         const char* alphabet = api -> GetUTF8Text();
 
         char outputString[15] = "";
+//        strncat(outputString, eng, 10);
         strncat(outputString, alphabet, 1);
         strncat(outputString, num, 9);
         api -> End();
@@ -194,7 +211,6 @@ int main(int argc, const char ** argv)
 //////////////////////////////////////////////////////
 
 //OCR原始
-//        api -> TessBaseAPI::SetVariable("tessedit_char_whitelist", "0123456789");
 //        api -> SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
 //
 //        api -> SetImage((uchar*)imgIdNumber.data, imgIdNumber.size().width, imgIdNumber.size().height,
