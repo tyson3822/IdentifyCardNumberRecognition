@@ -32,8 +32,6 @@
 #include <cctype>
 #include <dirent.h>
 
-#include "Camshift.hpp"
-#include "SurfMatcher.hpp"
 #include "TestFile.hpp"
 #include "BlurDetection.hpp"
 #include "GetCardMat.hpp"
@@ -46,18 +44,24 @@ using namespace cv::xfeatures2d;
 #define PRINT_COUNT 0
 #define PRINT_RESULT 1
 
-char scenePath[100] = "../scene/";
+char scenePath[100];
 TestFile _TF;
 
 int main(int argc, const char ** argv)
 {
-    cout << "--start identity card recognition program--" << endl;
-    //匯入測試檔案
-    //Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
+    cout << endl << "--if you want to see the output image--" << endl;
+    cout << "--you can create folder in the ../imageOutput/(folderIndex)--" << endl;
+    cout << "--eg. sample's output image folder path is ../imageOutput/0000/--" << endl;
+    cout << "--the folder index is according to it's index in the inputTest.txt--" << endl;
+
+    cout << endl << "--start identity card recognition program--" << endl << endl;
+
+    //匯入測試樣本檔案
     _TF.InitTestFile(argv[1], argv[2], argv[3]);//input,output,result
     int indexMin = atoi(argv[4]);
     int indexMax = atoi(argv[5]);
 
+    //進行每一張圖的影像處理
     for(int index = indexMin; index <= indexMax; index++)
     {
         //讀取scene的文字路徑處理
@@ -68,12 +72,38 @@ int main(int argc, const char ** argv)
         Mat imgScene = imread(scenePath , IMREAD_COLOR );  //讀取場景圖片
         cout << "scenePath = " << scenePath << endl;
 
+        //檢查影像大小有沒有符合需求
+        if(imgScene.cols < 800 || imgScene.rows < 600)
+        {
+            cout << "--this image is not suitable for size, you should take another picture with width and height more than 800 and  600." << endl << endl;
+
+            //把訊息記錄下來
+            char widthTemp[10];
+            char heightTemp[10];
+            char sizeMessage[100];
+            strcpy(sizeMessage, "ignore, size is too small. the image's width is ");
+
+            sprintf(widthTemp, "%d", imgScene.cols);
+            sprintf(heightTemp, "%d", imgScene.rows);
+
+            strcat(sizeMessage, widthTemp);
+            strcat(sizeMessage, ", and the image's height is ");
+            strcat(sizeMessage, heightTemp);
+            strcat(sizeMessage, " (in the range, width < 800 or height < 600)");
+
+            //輸出忽略結果及訊息到output vector
+            _TF.WriteToOutputByIndex(sizeMessage, index);
+            continue;
+        }
+
         //模糊偵測過度模糊的話就忽略
         float varianceOfLaplacian = BlurDectect(imgScene);
+        //若模糊值在指定範圍內則是為模糊
         if(varianceOfLaplacian < 300)
         {
             cout << "--this image is blurry, ignore." << endl << endl;
 
+            //把訊息記錄下來
             char blurryVOP[10];
             char blurryMessage[100];
             strcpy(blurryMessage, "ignore, blurry. the variance of Laplacian is ");
@@ -81,26 +111,28 @@ int main(int argc, const char ** argv)
             strcat(blurryMessage, blurryVOP);
             strcat(blurryMessage, " (in the range 0 ~ 300)");
 
+            //輸出忽略結果及訊息到output vector
             _TF.WriteToOutputByIndex(blurryMessage, index);
             continue;
         }
 
-        //將圖片檔名稱去除副檔名
+        //將圖片檔名稱去除副檔名以方便設定影像結果至輸出資料夾
         char  imageBasePath[20] = "../imageOutput/";
         int folderIndex = index;
         char folderIndexChar[5];
         sprintf(folderIndexChar, "%d", folderIndex);
         strcpy(folderIndexChar, _TF.FillDigit(folderIndexChar));
-        cout << "folderIndexChar = " << folderIndexChar << endl;
+        cout << "the output image folder index = " << folderIndexChar << endl;
 
         //切割出場景上的身份證
         Mat imgID(480, 800, CV_8UC3, Scalar::all(0));
-        GetCardMat(imgScene, imgID);//切割出身份證樣本區域  //驗證樣本區域size是否大於size(800(寬),480(高))
+        GetCardMat(imgScene, imgID);
 
         //如果場景上找不到身份證的話
         if(imgID.empty())
         {
             cout << "--can't detect identity card in this image, ignore." << endl << endl;
+            //輸出忽略結果到output vector
             _TF.WriteToOutputByIndex("ignore, can't find the identity card.", index);
             continue;
         }
@@ -111,14 +143,17 @@ int main(int argc, const char ** argv)
         char imgIdNumberName[] = "/IdNum.png";
         char imgIdNumberPath[50];
         strcpy(imgIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgIdNumberName));
-        cout << "imgIdNumberPath = " << imgIdNumberPath << endl;
+        //cout << "imgIdNumberPath = " << imgIdNumberPath << endl;
         imwrite(imgIdNumberPath, imgIdNumber);
 
+        //反光值做計算
         int reflectionValue = CalculateReflectionValue(imgIdNumber);
+        //若反光值超出範圍則忽略
         if(reflectionValue > 5 || reflectionValue < 0)
         {
             cout << "--can't detect identity card number, maybe the image reflective, ignore." << endl << endl;
 
+            //把訊息記錄下來
             char reflectionCharArr[10];
             char reflectionMessage[100];
             strcpy(reflectionMessage, "ignore, the image have reflection, and value is ");
@@ -126,89 +161,102 @@ int main(int argc, const char ** argv)
             strcat(reflectionMessage, reflectionCharArr);
             strcat(reflectionMessage, " (out of range 0 ~ 5).");
 
+            //輸出忽略結果及訊息到output vector
             _TF.WriteToOutputByIndex(reflectionMessage, index);
             continue;
         }
 
+        //宣告存字母和數字的Mat
         Mat singleAlphabet(imgIdNumber.size(), CV_8UC1, Scalar::all(255));
         Mat multiNumbers(imgIdNumber.size(), CV_8UC1, Scalar::all(255));;
-        //SeparateIdentityNumber(imgIdNumber, singleAlphabet, multiNumbers);
+
+        //把原圖分割成字母和數字
         SeparateIdentityNumberMethod2(imgIdNumber, singleAlphabet, multiNumbers);
 
+        //灰階 二值濾波
         cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);
         BinaryFilterByThresh(imgIdNumber, imgIdNumber);
 
+        //將原圖切割下來
         imgIdNumber(Rect(0, 0, singleAlphabet.cols, singleAlphabet.rows)).copyTo(singleAlphabet);
         imgIdNumber(Rect(singleAlphabet.cols, 0, multiNumbers.cols, multiNumbers.rows)).copyTo(multiNumbers);
 
+        //顯示切割結果
         imshow("singleAlphabet mat", singleAlphabet);
         imshow("multiNumbers mat", multiNumbers);
 
         //OCR處理
+        //初始化
         tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
         api -> Init("../", "kaiu_eng", tesseract::OEM_DEFAULT );
 
-//        api -> SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
-//        api -> SetImage((uchar*)imgIdNumber.data, imgIdNumber.size().width, imgIdNumber.size().height,
-//            imgIdNumber.channels(), imgIdNumber.step1());
-//        api -> Recognize(0);
-//        const char* eng = api -> GetUTF8Text();
-
+        //先掃描數字
+        //白名單和模式設定
         api -> TessBaseAPI::SetVariable("tessedit_char_whitelist", "0123456789");
         api -> SetPageSegMode(tesseract::PSM_SINGLE_LINE );
 
+        //給定影像，辨識
         api -> SetImage((uchar*)multiNumbers.data, multiNumbers.size().width, multiNumbers.size().height,
             multiNumbers.channels(), multiNumbers.step1());
         api -> Recognize(0);
         const char* num = api -> GetUTF8Text();
 
+        //白名單和模式設定
         api -> TessBaseAPI::SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
         api -> SetPageSegMode(tesseract::PSM_SINGLE_CHAR);
 
+        //給定影像，辨識
         api -> SetImage((uchar*)singleAlphabet.data, singleAlphabet.size().width, singleAlphabet.size().height,
             singleAlphabet.channels(), singleAlphabet.step1());
         api -> Recognize(0);
         const char* alphabet = api -> GetUTF8Text();
 
+        //輸出設定
         char outputString[15] = "";
-//        strncat(outputString, eng, 10);
         strncat(outputString, alphabet, 1);
         strncat(outputString, num, 9);
         api -> End();
 
         cout << "String:" <<  outputString << endl;
 
+        //輸出結果到output vector
         _TF.WriteToOutputByIndex(outputString, index);
 
         cout << endl;
     }
 
+    //把資料寫進文件中
     _TF.WriteDownOutput();
 
      cout << endl << "--begin get test result--" << endl << endl;
 
+    //比對結果
     _TF.MatchResult();
 
+    //顯示成功失敗忽略的樣本
     _TF.ListSuccessTest(PRINT_RESULT);
     _TF.ListFailureTest(PRINT_RESULT);
     _TF.ListIgnoreTest(PRINT_RESULT);
 
     cout << endl;
 
+    //顯示最終數據
     _TF.PrintResultData();
 
-    cout << endl << "--program end--" << endl;
+    cout << endl << "--program end--" << endl << endl;
 
     waitKey(0);
     return EXIT_SUCCESS;
 }
 
 //command line input
-//./main ../template/object2.png ../test/inputTest.txt ../test/outputTest.txt ../test/testResult.txt
+//./main ../test/inputTest.txt ../test/outputTest.txt ../test/testResult.txt 0 0
 
 //////////////////////////////////////////////////////
 //以下是沒使用但日後可以參考或擴增的功能//
 //////////////////////////////////////////////////////
+
+//Mat imgObject = imread( argv[1], IMREAD_COLOR );//object.png
 
 //OCR原始
 //        api -> SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
@@ -238,18 +286,18 @@ int main(int argc, const char ** argv)
 //    }
 
 //閉合(先膨脹再侵蝕)
-///        Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
-///        erode(imgIdNumber, imgIdNumber, element, Point(-1,-1), 2);//侵蝕
-///        dilate(imgIdNumber, imgIdNumber, element, Point(-1,-1), 1);//膨脹
-///        //morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
-///        imshow("closeImg", imgIdNumber);
+//        Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
+//        erode(imgIdNumber, imgIdNumber, element, Point(-1,-1), 2);//侵蝕
+//        dilate(imgIdNumber, imgIdNumber, element, Point(-1,-1), 1);//膨脹
+//        //morphologyEx( imgIdNumber, imgIdNumber, MORPH_CLOSE, element);
+//        imshow("closeImg", imgIdNumber);
 
 //中值濾波
-///        char imgMedianIdNumberPath[50];
-///        char imgMedianName[] = "/03imgIdNumber_medianBlur.png";
-///        medianBlur(imgIdNumber, imgIdNumber, 3);
-///        strcpy(imgMedianIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgMedianName));
-///        imwrite(imgMedianIdNumberPath, imgIdNumber);
+//        char imgMedianIdNumberPath[50];
+//        char imgMedianName[] = "/03imgIdNumber_medianBlur.png";
+//        medianBlur(imgIdNumber, imgIdNumber, 3);
+//        strcpy(imgMedianIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgMedianName));
+//        imwrite(imgMedianIdNumberPath, imgIdNumber);
 
 //二值化
 //        double thresh = 127;

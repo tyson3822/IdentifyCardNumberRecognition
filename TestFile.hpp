@@ -218,7 +218,7 @@ public:
         {
             if(successCount > 0)
             {
-                cout << endl << "--list the success test--" << endl;
+                cout << endl << "-list the success test-" << endl;
                 for(int i = 0; i < successCount; i++)
                     cout << "the result vector index by " << successListIndex[i] << " = " << successListString[i] << " is success." << endl;
             }
@@ -263,7 +263,7 @@ public:
         {
             if(failureCount > 0)
             {
-                cout << endl << "--list the failure test--" << endl;
+                cout << endl << "-list the failure test-" << endl;
                 for(int i = 0; i < failureCount; i++)
                     cout << "the result vector index by " << failureListIndex[i] << " = " << failureListString[i] << " is failure." << endl;
             }
@@ -302,7 +302,7 @@ public:
         {
             if(ignoreCount > 0)
             {
-                cout << endl << "--list the ignore test--" << endl;
+                cout << endl << "-list the ignore test-" << endl;
                 for(int i = 0; i < ignoreCount; i++)
                     cout << "the result vector index by " << ignoreListIndex[i] << " is " << ignoreListString[i] << endl;
             }
@@ -389,7 +389,7 @@ public:
         return newPath;
     }
 
-    //將字串1-1000修改成0001-1000
+    //修改字串eg. 1-1000修改成0001-1000
     char *FillDigit(char *input)
     {
         int digitalShift = 0;
@@ -425,6 +425,7 @@ public:
         return output;
     }
 
+    //顯示數據
     void PrintResultData()
     {
         int successCount = ListSuccessTest(PRINT_COUNT);

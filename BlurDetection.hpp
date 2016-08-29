@@ -12,11 +12,19 @@
 using namespace std;
 using namespace cv;
 
+//模糊值計算 採用laplace演算法
+//類似canny也是找尋輪廓的函數
+//找到的輪廓會設為顏色白色255 否則黑色0
+//藉由計算整個影像的標準差來判斷這個影像找到的輪廓或多或少
+//通常數值越小代表影像越模糊
+//所以制定計算值在300內的影像為模糊
+
+//模糊值計算 採用laplace演算法
 double VarianceOfLaplacian(const Mat& src)
 {
     Mat lap;
     //執行laplace演算法
-    Laplacian( src, lap, CV_16S, 3, 1, 0, BORDER_DEFAULT );//CV_64F
+    Laplacian( src, lap, CV_16S, 3, 1, 0, BORDER_DEFAULT );
     convertScaleAbs( lap, lap );
     //imshow("Laplacian", lap);
 
@@ -24,7 +32,7 @@ double VarianceOfLaplacian(const Mat& src)
     meanStdDev(lap, mu, sigma);
 
     //回傳值計算
-    double focusMeasure = sigma.val[0]*sigma.val[0];
+    double focusMeasure = sigma.val[0] * sigma.val[0];
     return focusMeasure;
 }
 
@@ -43,6 +51,6 @@ float BlurDectect(Mat img)
         isBlurry = true;
     }
 
-    cout << "the image's variance of Laplacian = " << result << ", so that image is " << resultText << endl;
+    //cout << "the image's variance of Laplacian = " << result << ", so that image is " << resultText << endl;
     return result;
 }

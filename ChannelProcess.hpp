@@ -36,7 +36,7 @@ int CalculateReflectionValue(Mat& in)
 
     //回傳值計算
     reflectionValue = mean.val[0];
-    cout << "reflection value = " << reflectionValue << endl;
+    //cout << "reflection value = " << reflectionValue << endl;
     return reflectionValue;
 }
 
@@ -52,7 +52,6 @@ void BinaryFilterByThresh(Mat& in, Mat& out)
 
     //指定濾波閥值
     int thresh = mean.val[0] * 0.875;//原0.85 0.875效果不錯
-    //cout << "thresh = " << thresh << endl;
 
     //進行濾波
     grayImg.setTo(0, grayImg < thresh);
@@ -188,17 +187,7 @@ void ColorFilterRed(Mat& in, Mat& out)
             normalize(tmpsplit[i], tmpsplit[i], 0, 255, NORM_MINMAX);
             //imshow("after", tmpsplit[i]);
 
-
-////////////////////            Mat sortGrayImg = tmpsplit[i].clone();
-////////////////////            cv::sort(sortGrayImg, sortGrayImg, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
-////////////////////            int meanIndex = FindFirstMeanIndex(sortGrayImg);
-////////////////////            cout << "meanIndex = " << meanIndex << endl;
-////////////////////            meanIndex -= 50;
-////////////////////            int thresh = sortGrayImg.at<uchar>(meanIndex);
-
             int thresh = mean.val[0] * 0.85;//有equalizeHist 0.2
-            //2雜訊變多
-            //1.4不錯
 
             //原1.25
             cout << "thresh = " << thresh << endl;
@@ -209,8 +198,6 @@ void ColorFilterRed(Mat& in, Mat& out)
             grayImg.setTo(0, grayImg < thresh);
             grayImg.setTo(255, grayImg >= thresh);
             imshow("grayImg", grayImg);
-
-
 
         }
 //        tmpsplit[i].setTo(lowval,tmpsplit[i] < lowval);

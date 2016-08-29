@@ -176,8 +176,7 @@ vector<Point2f> GetCardCorner()
     }
 
     //顯示最終畫布
-    resize(drawing, drawing, Size(800,600));
-    namedWindow( "result Contours", CV_WINDOW_AUTOSIZE );
+    resize(drawing, drawing, Size(imgSceneGray.cols, imgSceneGray.rows));
     imshow( "result Contours", drawing );
 
     return cardCorner;
@@ -246,7 +245,7 @@ void GetCardMat( Mat& input, Mat& output)
     output = imgOutput.clone();
 }
 
-//把輸入的身份證字號影像分割成英文和數字兩個Mat輸出，輸入影像為三通道
+//方法一；把輸入的身份證字號影像分割成英文和數字兩個Mat輸出，輸入影像為三通道
 void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
 {
     //複製原影像進行處理
@@ -371,7 +370,7 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
 //    imshow( "output number", outputNumber );
 }
 
-//把輸入的身份證字號影像分割成英文和數字兩個Mat輸出，輸入影像為三通道
+//方法二；把輸入的身份證字號影像分割成英文和數字兩個Mat輸出，輸入影像為三通道
 void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
 {
     //複製原影像進行處理
@@ -388,26 +387,17 @@ void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputN
     vector<vector<Point> > contours;
     vector<Vec4i> hierarchy;
 
-    //將影像進行膨脹
-//    Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
-//    //dilate(inputTemp, inputTemp, element, Point(-1,-1), 1);//侵蝕
-//    erode(inputTemp, inputTemp, element, Point(-1,-1), 1);//膨脹
-//    imshow("closeImg", inputTemp);
-
     //canny取輪廓
-    imshow("before Canny", inputTemp);
     Canny( inputTemp, threshold_output, 0, 0, 3 );
-    imshow("after Canny", threshold_output);
 
-    Mat element2 = getStructuringElement(MORPH_RECT, Size(2, 2));
-    dilate(threshold_output, threshold_output, element2, Point(-1,-1), 1);//侵蝕
-//    imshow("after Canny", threshold_output);
+    //將影像進行膨脹侵蝕處理
+    Mat element = getStructuringElement(MORPH_RECT, Size(2, 2));
+    dilate(threshold_output, threshold_output, element, Point(-1,-1), 1);//侵蝕
 
     //找輪廓存到contours
     findContours( threshold_output, contours, hierarchy, CV_RETR_TREE , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
 
     //宣告大約輪廓（減少Point），最小矩形，有可能為身份證的矩形
-    //vector<vector<Point> > contours_poly( contours.size() );
     vector<RotatedRect> minRect( contours.size() );
     vector<vector<Point> > identityNumber;
     vector<Rect> boundRect;
@@ -415,7 +405,6 @@ void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputN
     //將每個輪廓取出大約的輪廓並將大約的輪廓用最小矩形包起
     for( int i = 0; i < contours.size(); i++ )
     {
-        //approxPolyDP( Mat(contours[i]), contours_poly[i], 5, true );
         minRect[i] = minAreaRect( (Mat)contours[i] );
     }
 
@@ -442,6 +431,7 @@ void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputN
         if(fabs(contourArea(contours[i])) > 800 || fabs(contourArea(vectorRectPoints) < 100))//條件內的不要
             continue;
 
+        //有時候矩形四個點順序會跑掉 所以統一四點順序處理
         SortRectPoint(vectorRectPoints, vectorRectPoints);
 
         identityNumber.push_back(vectorRectPoints);
@@ -450,39 +440,45 @@ void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputN
         boundRect.push_back(boundingRect(Mat(vectorRectPoints)));
         identityNumberIndex++;
 
-        //cout << "i = " << i << ", and fabs(contourArea(contours[" << i << "]) = " << fabs(contourArea(vectorRectPoints)) << endl;
-
         //將這些大約輪廓畫在drawing上
-        Scalar color = Scalar(255, 255, 255);
-        drawContours( drawing, contours, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+        drawContours( drawing, contours, i, Scalar(255, 255, 255), 1, 8, vector<Vec4i>(), 0, Point() );
 
         //將找到數字的矩形畫在drawing
         rectangle(drawing, boundRect[identityNumberIndex - 1], Scalar(0, 255, 0), 1);
     }
 
+    //設定一個暫存數字矩形的遮罩
     Mat maskNum(input.size(), CV_8UC1, Scalar::all(255));
+    //把矩形劃上遮罩
     for(int index = 0; index < boundRect.size(); index++)
     {
         rectangle(maskNum, boundRect[index], Scalar(0, 0, 0), -1);
     }
-    imshow("mask Num", maskNum);
+    //imshow("mask Num", maskNum);
 
+    //將遮罩取輪廓
     Canny(maskNum, maskNum, 0, 0, 3);
 
+    //用findContours把每塊輪做index
     vector<vector<Point> > maskContours;
     findContours(maskNum, maskContours, hierarchy, CV_RETR_TREE , CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
 
+    //第二個畫布 方便觀察
     Mat drawing2 = Mat::zeros( threshold_output.size(), CV_8UC3 );
+
+    //設定暫存矩形的vector
     vector<Rect> maskRect;
+
+    //跑迴圈 把適合的矩形加入vector並畫到畫布上
     int rectIndexTemp = 0;
     for(int index = 0; index < maskContours.size(); index++)
     {
+        //boundingRect 以確保輸入的都是矩形
         Rect rectTemp = boundingRect(maskContours[index]);
+        //講不符合寬度（一個字元）的矩形篩選掉
         if(rectTemp.width > 35)continue;
-        //drawContours(drawing2, maskContours, index, Scalar(255, 255, 255));
         maskRect.push_back(boundingRect(maskContours[index]));
         rectangle(drawing2, maskRect[rectIndexTemp], Scalar(255, 255, 255), -1);
-        //cout <<  "maskRect = " << maskRect[rectIndexTemp] <<endl;
         rectIndexTemp++;
     }
     imshow("drawing2", drawing2);
@@ -513,9 +509,9 @@ void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputN
     rectangle(drawing, maskRect[alphabetIndex], Scalar(0, 0, 255), 1);
 
     //顯示最終畫布
-    imshow( "identity number all", drawing );
-    imshow( "output alphabet", outputAlphabet );
-    imshow( "output number", outputNumber );
+//    imshow( "identity number all", drawing );
+//    imshow( "output alphabet", outputAlphabet );
+//    imshow( "output number", outputNumber );
 }
 
 //////////////////////////////////////////////////////
