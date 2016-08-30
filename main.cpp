@@ -171,7 +171,8 @@ int main(int argc, const char ** argv)
         Mat multiNumbers(imgIdNumber.size(), CV_8UC1, Scalar::all(255));;
 
         //把原圖分割成字母和數字
-        SeparateIdentityNumberMethod2(imgIdNumber, singleAlphabet, multiNumbers);
+        SeparateIdentityNumber(imgIdNumber, singleAlphabet, multiNumbers);
+        //SeparateIdentityNumberMethod2(imgIdNumber, singleAlphabet, multiNumbers);
 
         //灰階 二值濾波
         cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);

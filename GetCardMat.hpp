@@ -124,7 +124,7 @@ vector<Point2f> GetCardCorner()
     for( int i = 0; i < contours_poly.size(); i++ )
     {
         //替除掉大小不合理的大約輪廓
-        if(fabs(contourArea(contours_poly[i])) > 400000 || fabs(contourArea(contours_poly[i])) < 80000 || contours_poly[i].size() > 20 )//條件內的不要
+        if(fabs(contourArea(contours_poly[i])) > 345600 || fabs(contourArea(contours_poly[i])) < 153600 || contours_poly[i].size() > 20 )//條件內的不要
             continue;
 
         //cout << "i = " << i << ", and fabs(contourArea(contours_poly[" << i << "]) = " << fabs(contourArea(contours_poly[i])) << endl;
