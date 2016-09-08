@@ -182,6 +182,198 @@ vector<Point2f> GetCardCorner()
     return cardCorner;
 }
 
+float AngleBetween(const Point &v1, const Point &v2)
+{
+    float PI = 3.14159;
+    float len1 = sqrt(v1.x * v1.x + v1.y * v1.y);
+    float len2 = sqrt(v2.x * v2.x + v2.y * v2.y);
+    float direction = (v2.cross(v1) >= 0 ? 1.0 : -1.0);
+
+    float dot = v1.x * v2.x + v1.y * v2.y;
+
+    float a = dot / (len1 * len2);
+
+    if (a >= 1.0)
+        return 0.0* (float)57.29578;
+    else if (a <= -1.0)
+        return PI* (float)57.29578;
+    else
+        return direction * acos(a) * (float)57.29578; // 0..PI
+}
+
+bool RotateCardUseNationalFlag(Mat& inputMat, Mat& outputMat, vector<Point2f>& nationalFlagCorner)
+{
+    bool isRotated = false;
+
+    Point cardCenter(inputMat.cols / 2, inputMat.rows / 2);
+    Point correctPoint(148, 131);
+
+    int minDistanceIndex = 0;
+    float minDistance = 1000;
+    for(int index = 0; index < nationalFlagCorner.size(); index++)
+    {
+        float distanceX = nationalFlagCorner[index].x - cardCenter.x;
+        float distanceY = nationalFlagCorner[index].y - cardCenter.y;
+        float centerPointDistance = sqrt(distanceX * distanceX + distanceY * distanceY);
+        if(centerPointDistance < minDistance)
+        {
+            minDistance = centerPointDistance;
+            minDistanceIndex = index;
+        }
+    }
+
+    Point minDistancePoint(nationalFlagCorner[minDistanceIndex].x, nationalFlagCorner[minDistanceIndex].y);
+
+    Point newCorrectPointCenterOrigin(correctPoint.x - cardCenter.x, correctPoint.y - cardCenter.y);
+    Point newMinDistancePointCenterOrigin(minDistancePoint.x - cardCenter.x, minDistancePoint.y - cardCenter.y);
+
+    float rotateAngle = 0;
+    float originScale = 1;
+    rotateAngle = AngleBetween(newCorrectPointCenterOrigin, newMinDistancePointCenterOrigin);
+    cout << "rotateAngle = " << rotateAngle << endl;
+
+    if(fabs(rotateAngle) > 2.5)
+    {
+        Mat rotatedCardTranserMat = getRotationMatrix2D(cardCenter, rotateAngle, originScale);
+        warpAffine( inputMat, outputMat, rotatedCardTranserMat, inputMat.size() );
+        isRotated = true;
+    }
+
+    imshow("RotateCardUseNationalFlag done", outputMat);
+    return isRotated;
+}
+
+vector<Point2f> GetNationalFlagCorner(Mat& inputMat)
+{
+    //輸出
+    vector<Point2f> nationalFlagCorner;
+
+    Mat inputMatTemp = inputMat.clone();
+
+    cvtColor(inputMatTemp, inputMatTemp, CV_BGR2GRAY);
+
+    //canny取輪廓
+    Mat threshold_output;
+    Canny( inputMatTemp, threshold_output, 100, 200, 3 );
+    imshow("GetNationalFlagCorner Canny", threshold_output);
+
+    //將輪廓接近的線給閉合
+    Mat element = getStructuringElement(MORPH_RECT, Size(5, 5));
+    Mat closeImg;
+    morphologyEx( threshold_output, threshold_output, MORPH_CLOSE, element);
+    imshow("GetNationalFlagCorner Close", threshold_output);
+
+    //找輪廓存到contours
+    vector<vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+    findContours( threshold_output, contours, hierarchy, CV_RETR_TREE  , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+
+    //宣告大約輪廓（減少Point），最小矩形，有可能為身份證的矩形
+    vector<vector<Point> > contours_poly( contours.size() );
+    vector<RotatedRect> minRect( contours.size() );
+    vector<vector<Point> > cardRectPossible( contours.size() );
+    int cardRectPossibleIndex = 0;
+
+    //將每個輪廓取出大約的輪廓並將大約的輪廓用最小矩形包起
+    for( int i = 0; i < contours.size(); i++ )
+    {
+        approxPolyDP( Mat(contours[i]), contours_poly[i], 5, true );
+        minRect[i] = minAreaRect( (Mat)contours_poly[i] );
+    }
+
+    //設定畫布以便觀察
+    Mat drawing = Mat::zeros( threshold_output.size(), CV_8UC3 );
+
+    //跑每個找到的輪廓
+    for( int i = 0; i < contours_poly.size(); i++ )
+    {
+        //替除掉大小不合理的大約輪廓
+        if(fabs(contourArea(contours_poly[i])) > 12880 || fabs(contourArea(contours_poly[i])) < 8880 || contours_poly[i].size() > 20 )//條件內的不要
+            continue;
+
+        //cout << "i = " << i << ", and fabs(contourArea(contours_poly[" << i << "]) = " << fabs(contourArea(contours_poly[i])) << endl;
+
+        //將這些大約輪廓畫在drawing上
+        Scalar color = Scalar(255, 255, 255);
+        drawContours( drawing, contours_poly, i, color, 1, 8, vector<Vec4i>(), 0, Point() );
+
+        //當前大約輪廓的最小矩形
+        Point2f rect_points[4];
+        minRect[i].points( rect_points );
+
+        //將最小舉行畫在drawing並列進可能為身份證矩形的vector中
+        for( int j = 0; j < 4; j++ )
+        {
+            line( drawing, rect_points[j], rect_points[(j+1)%4], Scalar(0, 255, 0), 3, 8 );
+            cardRectPossible[cardRectPossibleIndex].push_back(rect_points[j]);
+        }
+
+        cardRectPossibleIndex++;
+    }
+
+    //顯示所有的大約輪廓及他們的最小矩形
+    imshow( "GetNationalFlagCorner all possible Contours", drawing );
+
+    //如果找到有可能是在指定範圍的矩形，則找最小矩形
+    int minCardRectIndex = 0;
+    if(cardRectPossibleIndex > 0)
+    {
+        //取得這些矩形中最小的那個index（為了濾掉可能是外框）
+        int minArea = 1000000;
+        for(int i = 0; i < cardRectPossibleIndex; i++)
+        {
+            int cardArea = fabs(contourArea(cardRectPossible[i]));
+            if(cardArea < minArea)
+            {
+                minArea = cardArea;
+                minCardRectIndex = i;
+            }
+        }
+
+        //將最終的矩形存到輸出矩形上
+        for(int i = 0; i < cardRectPossible[minCardRectIndex].size(); i++)
+        {
+            nationalFlagCorner.push_back(cardRectPossible[minCardRectIndex][i]);
+            line( drawing, cardRectPossible[minCardRectIndex][i], cardRectPossible[minCardRectIndex][(i + 1) % 4], Scalar(255, 0, 0), 3, 8 );
+        }
+
+        //有時候矩形四點的順序會亂掉，故統一
+        SortRectPoint(nationalFlagCorner, nationalFlagCorner);
+    }
+
+    //顯示最終畫布
+    imshow( "GetNationalFlagCorner result Contours", drawing );
+    return nationalFlagCorner;
+}
+
+bool DoubleCheckUseNationalFlag(Mat& inputMat, vector<Point2f>& nationalFlagCorner)
+{
+
+    //輸出flag
+    bool correctFlag = true;
+
+    Mat inputMatTemp = inputMat.clone();
+
+    //如果最國旗是在指定範圍內，則可以說找到的這個身份證是對的
+    int nationalFlagAreaCols = inputMatTemp.cols * 0.23;
+    int nationalFlagAreaRows = inputMatTemp.rows * 0.31;
+    Rect doubleCheckNationalFlagRect(0, 0, nationalFlagAreaCols, nationalFlagAreaRows);
+
+    Mat drawing = inputMatTemp.clone();
+    rectangle(drawing, doubleCheckNationalFlagRect, Scalar(255, 255, 255), -1);
+
+    for(int i = 0; i < nationalFlagCorner.size(); i++)
+    {
+        line( drawing, nationalFlagCorner[i], nationalFlagCorner[(i + 1) % 4], Scalar(255, 0, 0), 3, 8 );
+        if(!doubleCheckNationalFlagRect.contains(nationalFlagCorner[i]))
+            correctFlag = false;
+    }
+    //顯示最終畫布
+    imshow( "doubleCheckNationalFlagRect", drawing );
+
+    return correctFlag;
+}
+
 //為GetCardCorner主程式 從輸入影上切割出身份證
 void GetCardMat( Mat& input, Mat& output)
 {
@@ -234,7 +426,7 @@ void GetCardMat( Mat& input, Mat& output)
         warpPerspective(input, imgOutput, H, imgOutputSize);
 
         //顯示輸出身份證切割圖
-        imshow("imgOutput", imgOutput);
+        imshow("GetCardMat done", imgOutput);
     }
     else
     {

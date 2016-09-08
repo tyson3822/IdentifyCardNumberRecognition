@@ -31,6 +31,9 @@
 #include <iostream>
 #include <cctype>
 #include <dirent.h>
+#include <fstream>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "TestFile.hpp"
 #include "BlurDetection.hpp"
@@ -44,8 +47,31 @@ using namespace cv::xfeatures2d;
 #define PRINT_COUNT 0
 #define PRINT_RESULT 1
 
+char testPath[100];
 char scenePath[100];
+char imageBasePath[100];
+char  imageBaseFolderPath[100];
+char commandLineTemp[100];
 TestFile _TF;
+
+void SaveTestFile()
+{
+    char testFileName[3][20] = {"inputTest.txt", "outputTest.txt",  "testResult.txt"};
+
+    for(int index = 0; index < 3; index++)
+    {
+        char srcTestFilePath[100];
+        char destTestFilePath[100];
+
+        strcpy(srcTestFilePath, testPath);
+        strcat(srcTestFilePath, testFileName[index]);
+
+        strcpy(destTestFilePath, imageBasePath);
+        strcat(destTestFilePath, testFileName[index]);
+
+        _TF.CopyFile(srcTestFilePath, destTestFilePath);
+    }
+}
 
 int main(int argc, const char ** argv)
 {
@@ -56,23 +82,92 @@ int main(int argc, const char ** argv)
 
     cout << endl << "--start identity card recognition program--" << endl << endl;
 
-    //匯入測試樣本檔案
-    _TF.InitTestFile(argv[1], argv[2], argv[3]);//input,output,result
-    int indexMin = atoi(argv[4]);
-    int indexMax = atoi(argv[5]);
+    ///command line input
+    strcpy(testPath, argv[1]);//test資料夾路徑
+    strcpy(scenePath, argv[2]); //樣本路徑
+    strcpy(imageBasePath, argv[3]);//輸出處理圖片資料夾路徑
+    int indexMin = atoi(argv[4]);//起始index
+    int indexMax = atoi(argv[5]);//結束index
+    int varianceOfLaplacianMax = atoi(argv[6]);//設定模糊範圍
 
-    //進行每一張圖的影像處理
+    ///command line access
+    for(int index = 1; index < 7; index++)
+    {
+        strcat(commandLineTemp, argv[index]);
+        strcat(commandLineTemp, " ");
+    }
+
+    ///初始化測試資料
+    _TF.InitTestFile(argv[1]);
+
+    ///首先新建由時間命名的處理圖片路經資料夾
+    //取得時間
+    time_t t = time(0);
+    char timeTemp[64];
+    strftime( timeTemp, sizeof(timeTemp), "%Y-%m-%d-%X",localtime(&t) );
+
+    //指定路徑
+    strcat(imageBasePath, timeTemp);
+
+    //資料夾建立成功與否
+    mkdir(imageBasePath, 0);
+
+    //指定到子路徑方便後面程式使用
+    strcat(imageBasePath, "/");
+
+    ///進行每一張圖的影像處理
     for(int index = indexMin; index <= indexMax; index++)
     {
-        //讀取scene的文字路徑處理
-        strcpy(scenePath, "../scene/");
-        char imgBuffer[50];
-        strcpy(imgBuffer, _TF.GetImgByIndex(index).c_str());
-        strcat(scenePath, imgBuffer);    //從檔案輸入scene圖片及加上路徑
-        Mat imgScene = imread(scenePath , IMREAD_COLOR );  //讀取場景圖片
-        cout << "scenePath = " << scenePath << endl;
+        ///讀取影像
+        //取得影像資料夾路徑
+        char scenePathTemp[100];
+        strcpy(scenePathTemp, scenePath);
 
-        //檢查影像大小有沒有符合需求
+        //取得影像名稱路徑
+        char imgBuffer[50];
+        strcpy(imgBuffer, _TF.GetImgByIndex(index).c_str());//暫存影像名稱
+        strcat(scenePathTemp, imgBuffer);//連接成影像路徑
+
+         //存取影像
+        Mat imgScene = imread(scenePathTemp , IMREAD_COLOR );
+        cout << "scenePath = " << scenePathTemp << endl;
+
+        ///建立處理圖片資料夾之子資料夾
+        //將處理圖片index 由int轉成char[]並遵循規則,eg.0->0000,1->0001,20->0020
+        int folderIndex = index;
+        char folderIndexChar[5];
+        sprintf(folderIndexChar, "%d", folderIndex);
+        strcpy(folderIndexChar, _TF.FillDigit(folderIndexChar));
+        cout << "the output image folder index = " << folderIndexChar << endl;
+
+        //連接子路徑名稱
+        strcpy(imageBaseFolderPath, imageBasePath);
+        strcat(imageBaseFolderPath, folderIndexChar);
+
+        //新建子路徑資料夾,用來存本index影像處理的輸出圖片
+        mkdir(imageBaseFolderPath, 0);
+
+        //指定到子路徑以方便使用
+        strcat(imageBaseFolderPath, "/");
+
+        ///先確認影像是直向還是橫向，如果是直向一律先擺成橫向
+        float widthHeightRate = (float)imgScene.cols / (float)imgScene.rows;
+
+        ///如果是直向的，就先翻轉成橫向
+        if(widthHeightRate < 1)
+        {
+            Mat outputImgScene(Size(imgScene.rows, imgScene.cols), CV_8UC3, Scalar::all(255));
+
+            float rotateAngle = 90;
+            float originScale = 1;
+            Point imgSceneCenter(imgScene.cols / 2, outputImgScene.rows / 2);
+
+            Mat rotatedImgSceneTranserMat = getRotationMatrix2D(imgSceneCenter, rotateAngle, originScale);
+            warpAffine( imgScene, outputImgScene, rotatedImgSceneTranserMat, outputImgScene.size() );
+            outputImgScene.copyTo(imgScene);
+        }
+
+        ///檢查影像大小有沒有符合需求
         if(imgScene.cols < 800 || imgScene.rows < 600)
         {
             cout << "--this image is not suitable for size, you should take another picture with width and height more than 800 and  600." << endl << endl;
@@ -98,8 +193,9 @@ int main(int argc, const char ** argv)
 
         //模糊偵測過度模糊的話就忽略
         float varianceOfLaplacian = BlurDectect(imgScene);
-        //若模糊值在指定範圍內則是為模糊
-        if(varianceOfLaplacian < 300)
+
+        ///若模糊值在指定範圍內則是為模糊
+        if(varianceOfLaplacian < varianceOfLaplacianMax)//origin = 300
         {
             cout << "--this image is blurry, ignore." << endl << endl;
 
@@ -116,19 +212,14 @@ int main(int argc, const char ** argv)
             continue;
         }
 
-        //將圖片檔名稱去除副檔名以方便設定影像結果至輸出資料夾
-        char  imageBasePath[20] = "../imageOutput/";
-        int folderIndex = index;
-        char folderIndexChar[5];
-        sprintf(folderIndexChar, "%d", folderIndex);
-        strcpy(folderIndexChar, _TF.FillDigit(folderIndexChar));
-        cout << "the output image folder index = " << folderIndexChar << endl;
-
         //切割出場景上的身份證
         Mat imgID(480, 800, CV_8UC3, Scalar::all(0));
         GetCardMat(imgScene, imgID);
 
-        //如果場景上找不到身份證的話
+        //儲存處理圖片
+        _TF.SaveOutputImage("1_IdCardWithoutProcess.png", imageBaseFolderPath, imgID);
+
+        ///如果場景上找不到身份證的話
         if(imgID.empty())
         {
             cout << "--can't detect identity card in this image, ignore." << endl << endl;
@@ -137,18 +228,57 @@ int main(int argc, const char ** argv)
             continue;
         }
 
-        //割出身份證上的字號樣本
+        ///從身份證上面找到國旗
+        vector<Point2f> nationalFlagCorner;
+        nationalFlagCorner = GetNationalFlagCorner(imgID);
+
+        ///如果找不到國旗，那代表可能影像本身就過度歪斜列入忽略
+        if(nationalFlagCorner.empty())
+        {
+            cout << "--can't find the national flag in the image, maybe it's too crooked to find the national flag area, ignore." << endl << endl;
+            //輸出忽略結果到output vector
+            _TF.WriteToOutputByIndex("ignore, can't find the national flag.", index);
+            continue;
+        }
+
+        ///進行校正，利用身份證上的國旗位置來校正身份證需不需要旋轉
+        bool isRotates = false;
+        isRotates = RotateCardUseNationalFlag(imgID, imgID, nationalFlagCorner);
+
+        ///如果有校正過的影像，需要在重新找一次國旗
+        if(isRotates)
+        {
+            nationalFlagCorner = GetNationalFlagCorner(imgID);
+        }
+
+        ///雙重確認，確認身份證上的國旗是不是在正確的區域
+        bool isCorrectAreaNationalFlag;
+        isCorrectAreaNationalFlag = DoubleCheckUseNationalFlag(imgID, nationalFlagCorner);
+
+        ///雙重確認國旗的位置是不是在合適的位置
+        if(isCorrectAreaNationalFlag != 1)
+        {
+            cout << "--can't detect national flag in the correct area, maybe it's too crooked to effect the national flag area, ignore." << endl << endl;
+
+            //輸出忽略結果到output vector
+            _TF.WriteToOutputByIndex("ignore, can't detect national flag in the correct area.", index);
+            continue;
+        }
+
+        //儲存處理圖片
+        _TF.SaveOutputImage("2_IdCardCorrect.png", imageBaseFolderPath, imgID);
+
+        ///割出身份證上的字號樣本
         Mat imgIdNumber = imgID(Rect(565, 400, 225, 70)).clone();
         imshow("IdNumber", imgIdNumber);
-        char imgIdNumberName[] = "/IdNum.png";
-        char imgIdNumberPath[50];
-        strcpy(imgIdNumberPath, _TF.ImageOutputPath(imageBasePath, folderIndexChar, imgIdNumberName));
-        //cout << "imgIdNumberPath = " << imgIdNumberPath << endl;
-        imwrite(imgIdNumberPath, imgIdNumber);
 
-        //反光值做計算
+        //儲存處理圖片
+        _TF.SaveOutputImage("3_IdSegmentNumber.png", imageBaseFolderPath, imgIdNumber);
+
+        ///反光值做計算
         int reflectionValue = CalculateReflectionValue(imgIdNumber);
-        //若反光值超出範圍則忽略
+
+        ///若反光值超出範圍則忽略
         if(reflectionValue > 5 || reflectionValue < 0)
         {
             cout << "--can't detect identity card number, maybe the image reflective, ignore." << endl << endl;
@@ -166,32 +296,36 @@ int main(int argc, const char ** argv)
             continue;
         }
 
-        //宣告存字母和數字的Mat
+        ///宣告存字母和數字的Mat
         Mat singleAlphabet(imgIdNumber.size(), CV_8UC1, Scalar::all(255));
         Mat multiNumbers(imgIdNumber.size(), CV_8UC1, Scalar::all(255));;
 
-        //把原圖分割成字母和數字
+        ///把原圖分割成字母和數字
         SeparateIdentityNumber(imgIdNumber, singleAlphabet, multiNumbers);
         //SeparateIdentityNumberMethod2(imgIdNumber, singleAlphabet, multiNumbers);
 
-        //灰階 二值濾波
+        ///灰階 二值濾波
         cvtColor(imgIdNumber, imgIdNumber, CV_BGR2GRAY);
         BinaryFilterByThresh(imgIdNumber, imgIdNumber);
 
-        //將原圖切割下來
+        ///將原圖切割下來
         imgIdNumber(Rect(0, 0, singleAlphabet.cols, singleAlphabet.rows)).copyTo(singleAlphabet);
         imgIdNumber(Rect(singleAlphabet.cols, 0, multiNumbers.cols, multiNumbers.rows)).copyTo(multiNumbers);
 
-        //顯示切割結果
+        ///顯示切割結果
         imshow("singleAlphabet mat", singleAlphabet);
         imshow("multiNumbers mat", multiNumbers);
 
-        //OCR處理
+        //儲存處理圖片
+        _TF.SaveOutputImage("4_IdNumberSingleAlphabet.png", imageBaseFolderPath, singleAlphabet);
+        _TF.SaveOutputImage("5_IdNumberMultiNumbers.png", imageBaseFolderPath, multiNumbers);
+
+        ///OCR處理
         //初始化
         tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
         api -> Init("../", "kaiu_eng", tesseract::OEM_DEFAULT );
 
-        //先掃描數字
+        ///先掃描數字
         //白名單和模式設定
         api -> TessBaseAPI::SetVariable("tessedit_char_whitelist", "0123456789");
         api -> SetPageSegMode(tesseract::PSM_SINGLE_LINE );
@@ -202,6 +336,7 @@ int main(int argc, const char ** argv)
         api -> Recognize(0);
         const char* num = api -> GetUTF8Text();
 
+        ///再掃描字母
         //白名單和模式設定
         api -> TessBaseAPI::SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
         api -> SetPageSegMode(tesseract::PSM_SINGLE_CHAR);
@@ -212,7 +347,7 @@ int main(int argc, const char ** argv)
         api -> Recognize(0);
         const char* alphabet = api -> GetUTF8Text();
 
-        //輸出設定
+        ///輸出字串設定
         char outputString[15] = "";
         strncat(outputString, alphabet, 1);
         strncat(outputString, num, 9);
@@ -220,19 +355,22 @@ int main(int argc, const char ** argv)
 
         cout << "String:" <<  outputString << endl;
 
-        //輸出結果到output vector
+        ///輸出結果到output vector
         _TF.WriteToOutputByIndex(outputString, index);
 
         cout << endl;
     }
 
-    //把資料寫進文件中
+    //把output資料寫進文件中
     _TF.WriteDownOutput();
 
      cout << endl << "--begin get test result--" << endl << endl;
 
-    //比對結果
+    ///比對結果
     _TF.MatchResult();
+
+    //把command line記錄下來
+    _TF.SaveCommandLine(commandLineTemp);
 
     //顯示成功失敗忽略的樣本
     _TF.ListSuccessTest(PRINT_RESULT);
@@ -241,10 +379,14 @@ int main(int argc, const char ** argv)
 
     cout << endl;
 
-    //顯示最終數據
+    ///顯示最終數據
     _TF.PrintResultData();
+    _TF.WriteResultData();
 
     cout << endl << "--program end--" << endl << endl;
+
+    ///儲存文件檔
+    SaveTestFile();
 
     waitKey(0);
     return EXIT_SUCCESS;

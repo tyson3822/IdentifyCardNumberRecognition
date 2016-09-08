@@ -10,6 +10,15 @@ using namespace std;
 #define PRINT_COUNT 0
 #define PRINT_RESULT 1
 
+#include "opencv2/core/utility.hpp"
+#include "opencv2/core/ocl.hpp"
+#include "opencv2/video/tracking.hpp"
+#include "opencv2/imgcodecs.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/highgui.hpp"
+using namespace cv;
+
 class TestFile
 {
 private:
@@ -26,11 +35,24 @@ private:
 
 public:
     //初始化文件檔
-    void InitTestFile(const char* inputFileName,const char*  outputFileName,const char*  ResultFileName)
+    void InitTestFile(const char* testPath)
     {
+        char inputFileName[100];
+        char outputFileName[100];
+        char resultFileName[100];
+
+        strcpy(inputFileName, testPath);
+        strcat(inputFileName, "inputTest.txt");
+
+        strcpy(outputFileName, testPath);
+        strcat(outputFileName, "outputTest.txt");
+
+        strcpy(resultFileName, testPath);
+        strcat(resultFileName, "testResult.txt");
+
         _inputFile.open(inputFileName, std::ifstream::in);
         _outputFile.open(outputFileName , ofstream::out | std::ios::trunc);
-        _resultFile.open(ResultFileName, ofstream::out | std::ios::trunc);
+        _resultFile.open(resultFileName, ofstream::out | std::ios::trunc);
         InitTestData();
     }
 
@@ -64,28 +86,10 @@ public:
         }
     }
 
-    //取得圖片vector大小
-    int GetImgVectorSize()
-    {
-        return imgBuffer.size();
-    }
-
-    //取得test vector大小
-    int GetTestVectorSize()
-    {
-        return testBuffer.size();
-    }
-
     //取得指定index圖片名稱
     string GetImgByIndex(int index)
     {
         return imgBuffer[index];
-    }
-
-    //取得指定index test名稱
-    string GetTestByIndex(int index)
-    {
-        return testBuffer[index];
     }
 
     //顯示vector內容//debug用
@@ -171,6 +175,16 @@ public:
             strcpy(outputCharArr, outputBuffer[index].c_str());
             strcpy(testCharArr, testBuffer[index].c_str());
 
+            char ignoreChar[10] = "ignore";
+            int ignoreResultTest = MatchNChar(outputCharArr, ignoreChar, 6);
+            if(ignoreResultTest == 1)resultBuffer.push_back("ignore");
+
+            if(outputBuffer[index].size() < 1)
+            {
+                //resultBuffer.push_back("none");
+                continue;
+            }
+
             //比對測資與output是否一樣
             int result = MatchChar(outputCharArr, testCharArr);
 
@@ -219,8 +233,12 @@ public:
             if(successCount > 0)
             {
                 cout << endl << "-list the success test-" << endl;
+                _resultFile << endl << "-list the success test-" << endl;
                 for(int i = 0; i < successCount; i++)
+                {
                     cout << "the result vector index by " << successListIndex[i] << " = " << successListString[i] << " is success." << endl;
+                    _resultFile << "the result vector index by " << successListIndex[i] << " = " << successListString[i] << " is success." << endl;
+                }
             }
         }
         return 0;
@@ -264,8 +282,12 @@ public:
             if(failureCount > 0)
             {
                 cout << endl << "-list the failure test-" << endl;
+                _resultFile << endl << "-list the failure test-" << endl;
                 for(int i = 0; i < failureCount; i++)
+                {
                     cout << "the result vector index by " << failureListIndex[i] << " = " << failureListString[i] << " is failure." << endl;
+                    _resultFile << "the result vector index by " << failureListIndex[i] << " = " << failureListString[i] << " is failure." << endl;
+                }
             }
         }
         return 0;
@@ -303,16 +325,20 @@ public:
             if(ignoreCount > 0)
             {
                 cout << endl << "-list the ignore test-" << endl;
+                _resultFile << endl << "-list the ignore test-" << endl;
                 for(int i = 0; i < ignoreCount; i++)
+                {
                     cout << "the result vector index by " << ignoreListIndex[i] << " is " << ignoreListString[i] << endl;
+                    _resultFile << "the result vector index by " << ignoreListIndex[i] << " is " << ignoreListString[i] << endl;
+                }
             }
         }
 
         return 0;
     }
 
-    //字串比對
-    int MatchString(string str1, string str2)//output,test
+    //對比文字(Char) 回傳1一樣，回傳-1不一樣
+    int MatchChar(char *str1, char *str2)//output,test
     {
         int result = 1;
         int charIndex = 0;
@@ -332,15 +358,15 @@ public:
         return result;
     }
 
-    //對比文字(Char) 回傳1一樣，回傳-1不一樣
-    int MatchChar(char *str1, char *str2)//output,test
+    //對比文字(Char) 回傳1一樣，回傳-1不一樣，用n個字元
+    int MatchNChar(char *str1, char *str2, int n)//output,test
     {
         int result = 1;
         int charIndex = 0;
         char p1 = str1[charIndex];
         char p2 = str2[charIndex];
         if(p1 == '\0')return -1;
-        while(p1 != '\0')
+        while(p1 != '\0' && charIndex < n)
         {
             //cout << "p1 = " << p1 << endl;
             //cout << "p2 = " << p2 << endl;
@@ -378,17 +404,6 @@ public:
         return output;
     }
 
-    //新增以圖片名稱為資料夾名稱的路徑
-    char* AddImageFolderPath(char* oldPath, char* imgName)
-    {
-        char *newPath;
-        newPath = new char[50];
-        strcpy(newPath, oldPath);
-        strcat(newPath, imgName);
-        strcat(newPath, "/");
-        return newPath;
-    }
-
     //修改字串eg. 1-1000修改成0001-1000
     char *FillDigit(char *input)
     {
@@ -414,15 +429,13 @@ public:
         return output;
     }
 
-    //輸出路徑整歸
-    char* ImageOutputPath(char* basePath, char* folderPath, char* fileName)
+    //儲存圖片
+    void SaveOutputImage(const char* fileName, char* folderPath, Mat& saveMat)
     {
-        char* output;
-        output = new char[50];
-        strcpy(output, basePath);
-        strcat(output, folderPath);
-        strcat(output, fileName);
-        return output;
+        char savePath[100];
+        strcpy(savePath, folderPath);
+        strcat(savePath, fileName);
+        imwrite(savePath, saveMat);
     }
 
     //顯示數據
@@ -446,4 +459,138 @@ public:
         cout << "the success rate = " << fixed << setprecision(2) << successRate << "(success/success+failure)." << endl;
         cout << "the failure rate = " << fixed << setprecision(2) << failureRate << "(failure/success+failure)." << endl;
     }
+
+    //寫入數據資料
+    void WriteResultData()
+    {
+        int successCount = ListSuccessTest(PRINT_COUNT);
+        int failureCount = ListFailureTest(PRINT_COUNT);
+        int ignoreCount = ListIgnoreTest(PRINT_COUNT);
+        int testCount = failureCount + successCount;
+        int totalCount = failureCount + successCount + ignoreCount;
+        double successRate = (double)successCount / (double)(testCount);
+        double failureRate = (double)failureCount / (double)(testCount);
+        _resultFile << endl << "--print the result data--" << endl;
+        _resultFile << "the success count = " << successCount << "." << endl;
+        _resultFile << "the failure count = " << failureCount << "." << endl;
+        _resultFile << "the test count = " << testCount << "(success+failure)." << endl;
+        _resultFile << endl;
+        _resultFile << "the ignore count = " << ignoreCount << "." << endl;
+        _resultFile << "the total count = " << totalCount << "(success+failure+ignore)." <<endl;
+        _resultFile << endl;
+        _resultFile << "the success rate = " << fixed << setprecision(2) << successRate << "(success/success+failure)." << endl;
+        _resultFile << "the failure rate = " << fixed << setprecision(2) << failureRate << "(failure/success+failure)." << endl;
+    }
+
+    //複製檔案
+    void CopyFile(const char* inputPath, const char* outputPath)
+    {
+        ifstream _inputFileCopy;
+        ofstream _outputFileCopy;
+
+        _inputFileCopy.open(inputPath, std::ifstream::in);
+        _outputFileCopy.open(outputPath , ofstream::out | std::ios::trunc);
+
+        _outputFileCopy << _inputFileCopy.rdbuf();
+
+        _inputFileCopy.close();
+        _outputFileCopy.close();
+    }
+
+    //儲存input command line
+    void SaveCommandLine(char* cammandLineChar)
+    {
+        _resultFile << endl<< "--the input command line is--";
+        _resultFile << endl << cammandLineChar << endl;
+    }
 };
+
+//////////////////////////////////////////////////////
+//以下是沒使用但日後可以參考或擴增的功能//
+//////////////////////////////////////////////////////
+
+//    void CopyFile(const char* inputPath, const char* outputPath)
+//    {
+//        ifstream _inputFileCopy;
+//        ofstream _outputFileCopy;
+//
+//        _inputFileCopy.open(inputPath, std::ifstream::in);
+//        _outputFileCopy.open(outputPath , ofstream::out | std::ios::trunc);
+//
+//        string buffer;
+//        char *charBuffer;
+//        while(_inputFileCopy >> buffer)
+//        {
+//            charBuffer = new char[buffer.length() + 1];
+//            strcpy(charBuffer, buffer.c_str());
+//
+//            _outputFileCopy << charBuffer << endl;
+//        }
+//
+//        _inputFileCopy.close();
+//        _outputFileCopy.close();
+//    }
+
+   //輸出路徑整歸
+//    char* ImageOutputPath(char* basePath, char* folderPath, char* fileName)
+//    {
+//        char* output;
+//        output = new char[50];
+//        strcpy(output, basePath);
+//        strcat(output, folderPath);
+//        strcat(output, fileName);
+//        return output;
+//    }
+
+
+
+    //新增以圖片名稱為資料夾名稱的路徑
+//    char* AddImageFolderPath(char* oldPath, char* imgName)
+//    {
+//        char *newPath;
+//        newPath = new char[50];
+//        strcpy(newPath, oldPath);
+//        strcat(newPath, imgName);
+//        strcat(newPath, "/");
+//        return newPath;
+//    }
+
+
+    //字串比對
+//    int MatchString(string str1, string str2)//output,test
+//    {
+//        int result = 1;
+//        int charIndex = 0;
+//        char p1 = str1[charIndex];
+//        char p2 = str2[charIndex];
+//        if(p1 == '\0')return -1;
+//        while(p1 != '\0')
+//        {
+//            //cout << "p1 = " << p1 << endl;
+//            //cout << "p2 = " << p2 << endl;
+//            if(p1 != p2)return -1;
+//            if(p2 == '\0')return -1;
+//           charIndex++;
+//            p1 = str1[charIndex];
+//            p2 = str2[charIndex];
+//        }
+//        return result;
+//    }
+
+    //取得指定index test名稱
+//    string GetTestByIndex(int index)
+//    {
+//        return testBuffer[index];
+//    }
+
+    //取得圖片vector大小
+//    int GetImgVectorSize()
+//    {
+//        return imgBuffer.size();
+//    }
+//
+//    //取得test vector大小
+//    int GetTestVectorSize()
+//    {
+//        return testBuffer.size();
+//    }

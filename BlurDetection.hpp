@@ -19,20 +19,29 @@ using namespace cv;
 //通常數值越小代表影像越模糊
 //所以制定計算值在300內的影像為模糊
 
+int kernel_size = 3;
+int scale = 1;
+int delta = 0;
+int ddepth = CV_16S;
+
 //模糊值計算 採用laplace演算法
 double VarianceOfLaplacian(const Mat& src)
 {
     Mat lap;
     //執行laplace演算法
-    Laplacian( src, lap, CV_16S, 3, 1, 0, BORDER_DEFAULT );
+    Laplacian( src, lap, ddepth, kernel_size, scale, delta, BORDER_DEFAULT );
     convertScaleAbs( lap, lap );
-    //imshow("Laplacian", lap);
+    resize(lap, lap, Size(800, 480));
+    imshow("Laplacian", lap);
 
     Scalar mu, sigma;
     meanStdDev(lap, mu, sigma);
 
     //回傳值計算
     double focusMeasure = sigma.val[0] * sigma.val[0];
+//    cout << "focusMeasure = " << focusMeasure << endl;
+//    cout << "sigma = " << sigma.val[0] << endl;
+//    cout <<  "mu = " << mu.val[0] << endl;
     return focusMeasure;
 }
 
@@ -54,3 +63,5 @@ float BlurDectect(Mat img)
     //cout << "the image's variance of Laplacian = " << result << ", so that image is " << resultText << endl;
     return result;
 }
+
+//http://www.pyimagesearch.com/2015/09/07/blur-detection-with-opencv/
