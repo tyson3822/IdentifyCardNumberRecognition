@@ -83,6 +83,7 @@ public:
             //cout << "push " << test << " to test vector" << endl;
 
             outputBuffer.resize(imgBuffer.size());
+            resultBuffer.resize(imgBuffer.size());
         }
     }
 
@@ -156,9 +157,10 @@ public:
     //把資料寫進文件檔中
     void WriteDownOutput()
     {
-        for(int i = 0; i < outputBuffer.size(); i++)
+        for(int index = 0; index < outputBuffer.size(); index++)
         {
-            _outputFile << outputBuffer[i] << endl;
+            if(outputBuffer[index].size() < 1)continue;
+            _outputFile << outputBuffer[index] << endl;
         }
     }
 
@@ -177,7 +179,11 @@ public:
 
             char ignoreChar[10] = "ignore";
             int ignoreResultTest = MatchNChar(outputCharArr, ignoreChar, 6);
-            if(ignoreResultTest == 1)resultBuffer.push_back("ignore");
+            if(ignoreResultTest == 1)
+            {
+                resultBuffer[index] = "ignore";
+                continue;
+            }
 
             if(outputBuffer[index].size() < 1)
             {
@@ -189,14 +195,15 @@ public:
             int result = MatchChar(outputCharArr, testCharArr);
 
             //將結果丟進resultBuffer中
-            if(result == 1)resultBuffer.push_back("true");
-            if(result == -1)resultBuffer.push_back("false");
+            if(result == 1)resultBuffer[index] = "true";
+            if(result == -1)resultBuffer[index] = "false";
         }
         //ViewVector('r');
 
         //所有測試結果寫進文件中
         for(int index = 0; index < resultBuffer.size(); index++)
         {
+            if(resultBuffer[index].size() < 1)continue;
             _resultFile << resultBuffer[index] << endl;
         }
     }
@@ -212,7 +219,7 @@ public:
         strcpy(trueChar, "true");
          for(int i  = 0; i < resultBuffer.size(); i++)
         {
-            if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
+            if(resultBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
 
             strcpy(resultCharArr, resultBuffer[i].c_str());
              if(MatchChar(resultCharArr, trueChar) != 1)continue;//忽略掉不是true的
@@ -258,12 +265,12 @@ public:
         strcpy(ignoreChar, "ignore");
          for(int i  = 0; i < resultBuffer.size(); i++)
         {
-             if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
+             if(resultBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
 
              strcpy(resultCharArr, resultBuffer[i].c_str());
              if(MatchChar(resultCharArr, falseChar) != 1)continue;//忽略掉不是false的
 
-             strncpy(outputCharArr, outputBuffer[i].c_str(), 6);
+             strncpy(outputCharArr, resultBuffer[i].c_str(), 6);
              outputCharArr[6] = '\0';
              if(MatchChar(outputCharArr, ignoreChar) == 1)continue;//忽略掉是ignore的
 
@@ -304,14 +311,17 @@ public:
         strcpy(ignoreChar, "ignore");
         for(int i  = 0; i < resultBuffer.size(); i++)
         {
-            if(outputBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
+            if(resultBuffer[i].size() < 1)continue;//忽略掉沒有輸出的
 
-            strncpy(outputCharArr, outputBuffer[i].c_str(), 6);
+            strncpy(outputCharArr, resultBuffer[i].c_str(), 6);
             outputCharArr[6] = '\0';
+//            cout << "outputCharArr = " << outputCharArr << endl;
+//            cout << "ignoreChar = " << ignoreChar << endl;
+
             if(MatchChar(outputCharArr, ignoreChar) != 1)continue;//忽略掉不是ignore的
 
             ignoreListIndex.push_back(i);
-            ignoreListString.push_back(outputBuffer[i]);
+            ignoreListString.push_back(resultBuffer[i]);
             ignoreCount++;
         }
 

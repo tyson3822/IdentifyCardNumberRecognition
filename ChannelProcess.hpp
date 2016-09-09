@@ -4,6 +4,8 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 
+#include "Init.hpp"
+
 using namespace cv;
 using namespace std;
 
@@ -30,6 +32,7 @@ int CalculateReflectionValue(Mat& in)
     int lowValue = 0;
     grayImg.setTo(lowValue, grayImg< thresh);
     grayImg.setTo(highValue, grayImg >= thresh);
+    if(DEBUG)imshow("ReflectionDetect", grayImg);
 
     //再次計算平均值（二值化的成像）
     meanStdDev(grayImg, mean, sigma);
@@ -58,7 +61,7 @@ void BinaryFilterByThresh(Mat& in, Mat& out)
     grayImg.setTo(255, grayImg >= thresh);
 
     //輸出影像
-    imshow("grayImg", grayImg);
+    if(DEBUG)imshow("grayImg", grayImg);
     out = grayImg.clone();
 }
 

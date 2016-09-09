@@ -1,6 +1,8 @@
 #include <opencv2/opencv.hpp>
 #include "ChannelProcess.hpp"
 
+#include "Init.hpp"
+
 using namespace cv;
 using namespace std;
 
@@ -96,13 +98,13 @@ vector<Point2f> GetCardCorner()
 
     //canny取輪廓
     Canny( imgSceneGray, threshold_output, 100, 200, 3 );
-    imshow("Canny", threshold_output);
+    if(DEBUG)imshow("Canny", threshold_output);
 
     //將輪廓接近的線給閉合
     Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
     Mat closeImg;
     morphologyEx( threshold_output, threshold_output, MORPH_CLOSE, element);
-    imshow("Close", threshold_output);
+    if(DEBUG)imshow("Close", threshold_output);
 
     //找輪廓存到contours
     findContours( threshold_output, contours, hierarchy, CV_RETR_TREE  , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
@@ -123,7 +125,7 @@ vector<Point2f> GetCardCorner()
     Mat drawing = Mat::zeros( threshold_output.size(), CV_8UC3 );
     for( int i = 0; i < contours_poly.size(); i++ )
     {
-        //替除掉大小不合理的大約輪廓
+        //替除掉大小不合理的大約輪廓，輪廓面積40%以下與90%以上不要，輪廓多餘20個點的也不要
         if(fabs(contourArea(contours_poly[i])) > 345600 || fabs(contourArea(contours_poly[i])) < 153600 || contours_poly[i].size() > 20 )//條件內的不要
             continue;
 
@@ -148,7 +150,7 @@ vector<Point2f> GetCardCorner()
     }
 
     //顯示所有的大約輪廓及他們的最小矩形
-    imshow( "all possible Contours", drawing );
+    if(DEBUG)imshow( "all possible Contours", drawing );
 
     if(cardRectPossibleIndex > 0)
     {
@@ -177,7 +179,7 @@ vector<Point2f> GetCardCorner()
 
     //顯示最終畫布
     resize(drawing, drawing, Size(imgSceneGray.cols, imgSceneGray.rows));
-    imshow( "result Contours", drawing );
+    if(DEBUG)imshow( "result Contours", drawing );
 
     return cardCorner;
 }
@@ -223,6 +225,12 @@ bool RotateCardUseNationalFlag(Mat& inputMat, Mat& outputMat, vector<Point2f>& n
     }
 
     Point minDistancePoint(nationalFlagCorner[minDistanceIndex].x, nationalFlagCorner[minDistanceIndex].y);
+    //cout << "minDistancePoint = " << minDistancePoint << endl;
+
+    //如果最接近的點已經是在正確位置(正負5)附近，則不用旋轉
+    Rect correctArea(correctPoint.x - 100, correctPoint.y - 100, 200, 200);
+    if(correctArea.contains(minDistancePoint))
+        return false;
 
     Point newCorrectPointCenterOrigin(correctPoint.x - cardCenter.x, correctPoint.y - cardCenter.y);
     Point newMinDistancePointCenterOrigin(minDistancePoint.x - cardCenter.x, minDistancePoint.y - cardCenter.y);
@@ -239,7 +247,7 @@ bool RotateCardUseNationalFlag(Mat& inputMat, Mat& outputMat, vector<Point2f>& n
         isRotated = true;
     }
 
-    imshow("RotateCardUseNationalFlag done", outputMat);
+    if(DEBUG)imshow("RotateCardUseNationalFlag done", outputMat);
     return isRotated;
 }
 
@@ -255,13 +263,13 @@ vector<Point2f> GetNationalFlagCorner(Mat& inputMat)
     //canny取輪廓
     Mat threshold_output;
     Canny( inputMatTemp, threshold_output, 100, 200, 3 );
-    imshow("GetNationalFlagCorner Canny", threshold_output);
+    if(DEBUG)imshow("GetNationalFlagCorner Canny", threshold_output);
 
     //將輪廓接近的線給閉合
     Mat element = getStructuringElement(MORPH_RECT, Size(5, 5));
     Mat closeImg;
     morphologyEx( threshold_output, threshold_output, MORPH_CLOSE, element);
-    imshow("GetNationalFlagCorner Close", threshold_output);
+    if(DEBUG)imshow("GetNationalFlagCorner Close", threshold_output);
 
     //找輪廓存到contours
     vector<vector<Point> > contours;
@@ -287,7 +295,7 @@ vector<Point2f> GetNationalFlagCorner(Mat& inputMat)
     //跑每個找到的輪廓
     for( int i = 0; i < contours_poly.size(); i++ )
     {
-        //替除掉大小不合理的大約輪廓
+        //替除掉大小不合理的大約輪廓，國旗面積應為128*85=10800，佔身份證面積2.8%，取約正負0.5%為範圍
         if(fabs(contourArea(contours_poly[i])) > 12880 || fabs(contourArea(contours_poly[i])) < 8880 || contours_poly[i].size() > 20 )//條件內的不要
             continue;
 
@@ -312,7 +320,7 @@ vector<Point2f> GetNationalFlagCorner(Mat& inputMat)
     }
 
     //顯示所有的大約輪廓及他們的最小矩形
-    imshow( "GetNationalFlagCorner all possible Contours", drawing );
+    if(DEBUG)imshow( "GetNationalFlagCorner all possible Contours", drawing );
 
     //如果找到有可能是在指定範圍的矩形，則找最小矩形
     int minCardRectIndex = 0;
@@ -342,7 +350,7 @@ vector<Point2f> GetNationalFlagCorner(Mat& inputMat)
     }
 
     //顯示最終畫布
-    imshow( "GetNationalFlagCorner result Contours", drawing );
+    if(DEBUG)imshow( "GetNationalFlagCorner result Contours", drawing );
     return nationalFlagCorner;
 }
 
@@ -362,14 +370,18 @@ bool DoubleCheckUseNationalFlag(Mat& inputMat, vector<Point2f>& nationalFlagCorn
     Mat drawing = inputMatTemp.clone();
     rectangle(drawing, doubleCheckNationalFlagRect, Scalar(255, 255, 255), -1);
 
+    Mat drawing2 = inputMatTemp.clone();
     for(int i = 0; i < nationalFlagCorner.size(); i++)
     {
         line( drawing, nationalFlagCorner[i], nationalFlagCorner[(i + 1) % 4], Scalar(255, 0, 0), 3, 8 );
+        line( drawing2, nationalFlagCorner[i], nationalFlagCorner[(i + 1) % 4], Scalar(255, 0, 0), 3, 8 );
         if(!doubleCheckNationalFlagRect.contains(nationalFlagCorner[i]))
             correctFlag = false;
     }
+
     //顯示最終畫布
-    imshow( "doubleCheckNationalFlagRect", drawing );
+    if(DEBUG)imshow( "nationalFlagRect", drawing2 );
+    if(DEBUG)imshow( "doubleCheckNationalFlagRect", drawing );
 
     return correctFlag;
 }
@@ -388,7 +400,7 @@ void GetCardMat( Mat& input, Mat& output)
     //設定暫存Mat為處理Mat
     Mat imgSceneTemp;
     imgSceneTemp = imgScene.clone();
-    imshow("Image SceneTemp", imgSceneTemp);
+    if(DEBUG)imshow("Image SceneTemp", imgSceneTemp);
 
     //做色彩平衡
     Mat imgSceneColorBalance;
@@ -397,7 +409,7 @@ void GetCardMat( Mat& input, Mat& output)
     //做MeanShift把顏色區塊化
     Mat imgSceneMeanShift;
     pyrMeanShiftFiltering( imgSceneColorBalance, imgSceneMeanShift, 30, 20, 3);
-    imshow("meanShiftImg", imgSceneMeanShift);
+    if(DEBUG)imshow("meanShiftImg", imgSceneMeanShift);
 
     //灰階
     cvtColor( imgSceneMeanShift, imgSceneGray, CV_BGR2GRAY );
@@ -426,7 +438,7 @@ void GetCardMat( Mat& input, Mat& output)
         warpPerspective(input, imgOutput, H, imgOutputSize);
 
         //顯示輸出身份證切割圖
-        imshow("GetCardMat done", imgOutput);
+        if(DEBUG)imshow("GetCardMat done", imgOutput);
     }
     else
     {
@@ -461,12 +473,12 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
 //    imshow("closeImg", inputTemp);
 
     //canny取輪廓
-    imshow("before Canny", inputTemp);
+    if(DEBUG)imshow("before Canny", inputTemp);
     Canny( inputTemp, threshold_output, 0, 0, 3 );
 
     Mat element2 = getStructuringElement(MORPH_RECT, Size(2, 2));
     dilate(threshold_output, threshold_output, element2, Point(-1,-1), 1);//侵蝕
-    imshow("after Canny", threshold_output);
+    if(DEBUG)imshow("after Canny", threshold_output);
 
     //找輪廓存到contours
     findContours( inputTemp, contours, hierarchy, CV_RETR_TREE , CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
@@ -530,7 +542,7 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
     {
         rectangle(maskNum, boundRect[index], Scalar(0, 0, 0), -1);
     }
-    imshow("mask Num", maskNum);
+    if(DEBUG)imshow("mask Num", maskNum);
 
     //取得最左邊的矩形為字母
     for(int index = 0; index < identityNumber.size(); index++)
@@ -561,6 +573,10 @@ void SeparateIdentityNumber(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
 //    imshow( "output alphabet", outputAlphabet );
 //    imshow( "output number", outputNumber );
 }
+
+//////////////////////////////////////////////////////
+//以下是沒使用但日後可以參考或擴增的功能//
+//////////////////////////////////////////////////////
 
 //方法二；把輸入的身份證字號影像分割成英文和數字兩個Mat輸出，輸入影像為三通道
 void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputNumber)
@@ -673,7 +689,7 @@ void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputN
         rectangle(drawing2, maskRect[rectIndexTemp], Scalar(255, 255, 255), -1);
         rectIndexTemp++;
     }
-    imshow("drawing2", drawing2);
+    if(DEBUG)imshow("drawing2", drawing2);
 
     //取得最左邊的矩形為字母
     for(int index = 0; index < maskRect.size(); index++)
@@ -705,10 +721,6 @@ void SeparateIdentityNumberMethod2(Mat& input, Mat& outputAlphabet, Mat& outputN
 //    imshow( "output alphabet", outputAlphabet );
 //    imshow( "output number", outputNumber );
 }
-
-//////////////////////////////////////////////////////
-//以下是沒使用但日後可以參考或擴增的功能//
-//////////////////////////////////////////////////////
 
 //原是sort使用的struct
 //struct str{

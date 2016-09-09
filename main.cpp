@@ -35,6 +35,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "Init.hpp"
+
 #include "TestFile.hpp"
 #include "BlurDetection.hpp"
 #include "GetCardMat.hpp"
@@ -43,9 +45,6 @@
 using namespace std;
 using namespace cv;
 using namespace cv::xfeatures2d;
-
-#define PRINT_COUNT 0
-#define PRINT_RESULT 1
 
 char testPath[100];
 char scenePath[100];
@@ -76,8 +75,8 @@ void SaveTestFile()
 int main(int argc, const char ** argv)
 {
     cout << endl << "--if you want to see the output image--" << endl;
-    cout << "--you can create folder in the ../imageOutput/(folderIndex)--" << endl;
-    cout << "--eg. sample's output image folder path is ../imageOutput/0000/--" << endl;
+    cout << "--you can create folder in the ../imageOutput--" << endl;
+    cout << "--it will create output image folder by index automatic--" << endl;
     cout << "--the folder index is according to it's index in the inputTest.txt--" << endl;
 
     cout << endl << "--start identity card recognition program--" << endl << endl;
@@ -194,7 +193,7 @@ int main(int argc, const char ** argv)
         //模糊偵測過度模糊的話就忽略
         float varianceOfLaplacian = BlurDectect(imgScene);
 
-        ///若模糊值在指定範圍內則是為模糊
+        ///若模糊回傳值在指定範圍內則視為模糊
         if(varianceOfLaplacian < varianceOfLaplacianMax)//origin = 300
         {
             cout << "--this image is blurry, ignore." << endl << endl;
@@ -212,7 +211,7 @@ int main(int argc, const char ** argv)
             continue;
         }
 
-        //切割出場景上的身份證
+        ///切割出場景上的身份證
         Mat imgID(480, 800, CV_8UC3, Scalar::all(0));
         GetCardMat(imgScene, imgID);
 
@@ -270,7 +269,7 @@ int main(int argc, const char ** argv)
 
         ///割出身份證上的字號樣本
         Mat imgIdNumber = imgID(Rect(565, 400, 225, 70)).clone();
-        imshow("IdNumber", imgIdNumber);
+        if(DEBUG)imshow("IdNumber", imgIdNumber);
 
         //儲存處理圖片
         _TF.SaveOutputImage("3_IdSegmentNumber.png", imageBaseFolderPath, imgIdNumber);
@@ -313,14 +312,14 @@ int main(int argc, const char ** argv)
         imgIdNumber(Rect(singleAlphabet.cols, 0, multiNumbers.cols, multiNumbers.rows)).copyTo(multiNumbers);
 
         ///顯示切割結果
-        imshow("singleAlphabet mat", singleAlphabet);
-        imshow("multiNumbers mat", multiNumbers);
+        if(DEBUG)imshow("singleAlphabet mat", singleAlphabet);
+        if(DEBUG)imshow("multiNumbers mat", multiNumbers);
 
         //儲存處理圖片
         _TF.SaveOutputImage("4_IdNumberSingleAlphabet.png", imageBaseFolderPath, singleAlphabet);
         _TF.SaveOutputImage("5_IdNumberMultiNumbers.png", imageBaseFolderPath, multiNumbers);
 
-        ///OCR處理
+        ///個別做OCR處理後合併
         //初始化
         tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
         api -> Init("../", "kaiu_eng", tesseract::OEM_DEFAULT );
@@ -360,6 +359,7 @@ int main(int argc, const char ** argv)
 
         cout << endl;
     }
+    //waitKey(0);waitKey(0);waitKey(0);waitKey(0);waitKey(0);waitKey(0);waitKey(0);waitKey(0);waitKey(0);waitKey(0);
 
     //把output資料寫進文件中
     _TF.WriteDownOutput();

@@ -9,6 +9,8 @@
 #include <iostream>
 #include <cctype>
 
+#include "Init.hpp"
+
 using namespace std;
 using namespace cv;
 
@@ -32,7 +34,7 @@ double VarianceOfLaplacian(const Mat& src)
     Laplacian( src, lap, ddepth, kernel_size, scale, delta, BORDER_DEFAULT );
     convertScaleAbs( lap, lap );
     resize(lap, lap, Size(800, 480));
-    imshow("Laplacian", lap);
+    if(DEBUG)imshow("Laplacian", lap);
 
     Scalar mu, sigma;
     meanStdDev(lap, mu, sigma);
